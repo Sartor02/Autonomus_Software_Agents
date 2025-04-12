@@ -5,7 +5,9 @@ export class DeliveryStrategy {
     }
   
     shouldDeliver() {
-        return this.carriedParcels.length > 1;
+        /*return this.carriedParcels.length > 1 || 
+               this.carriedParcels.some(p => p.reward <  14);*/
+        return this.carriedParcels.length > 0;
     }
   
     getDeliveryAction() {

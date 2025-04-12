@@ -7,6 +7,8 @@ export class Beliefs {
         this.myScore = 0;
         this.availableParcels = [];
         this.deliveryTiles = [];
+        this.spawnTiles = [];
+        this.normalTiles = [];
         this.myId = null; 
     }
   
@@ -31,12 +33,15 @@ export class Beliefs {
     }
 
     updateMapInfo(width, height, tiles) {
-        this.deliveryTiles = [];
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const tile = tiles[y * width + x];
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                const tile = tiles[x * height + y];
                 if (tile.type === 2) { // 2 = delivery tile
                     this.deliveryTiles.push({x, y});
+                } else if (tile.type === 1) { // 1 = spawn tile
+                    this.spawnTiles.push({x, y});
+                } else if (tile.type === 3) { // 3 = normal tile
+                    this.normalTiles.push({x, y});
                 }
             }
         }

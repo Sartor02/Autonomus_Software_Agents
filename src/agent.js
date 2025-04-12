@@ -60,7 +60,7 @@ class Agent {
                 case 'pickup': await this.api.emitPickup(); break;
                 case 'putdown': await this.api.emitPutdown(); break;
             }
-            await this.delay(200); // 500ms delay between actions
+            await this.delay(50); // 500ms delay between actions
         } catch (err) {
             console.error('Action failed:', err);
         } finally {
