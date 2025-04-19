@@ -1,11 +1,11 @@
 export class DeliveryStrategy {
     constructor(beliefs, pathfinder) {
         this.beliefs = beliefs;
-        this.pathfinder = pathfinder; // Use the new pathfinder
+        this.pathfinder = pathfinder;
         this.carriedParcels = [];
         this.deliveryThreshold = 12; // Minimum reward to consider a parcel for detour
         this.maxDetourDistance = 5; // Increased max detour distance slightly
-        this.deliveryPath = []; // Path calculated by A* for delivery
+        this.deliveryPath = [];
     }
 
     shouldDeliver() {
@@ -30,8 +30,8 @@ export class DeliveryStrategy {
         }
 
         // Evaluate if picking up a nearby parcel during delivery is worthwhile
-        // Only evaluate if we have capacity and not already following a delivery path
-        if (this.carriedParcels.length < 3 ){//&& this.deliveryPath.length === 0) {
+        //FIXME: This if condition should check the reward time of the parcel, not the number of parcels carried 
+        if (this.carriedParcels.length < 3 ){
              const detourParcel = this.evaluateDetourParcels();
              if (detourParcel) {
                  console.log(`Considering detour for parcel ${detourParcel.id} at ${detourParcel.x}, ${detourParcel.y}`);
@@ -51,7 +51,6 @@ export class DeliveryStrategy {
         }
 
 
-        // If not at a delivery tile and not taking a detour, proceed towards delivery
          // If delivery path is empty or doesn't lead to the closest delivery tile, calculate it
          const closestDeliveryTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
          if (!closestDeliveryTile) {
@@ -71,15 +70,14 @@ export class DeliveryStrategy {
     }
 
     evaluateDetourParcels() {
+        //FIXME: As the if above, this should check the reward time of the parcel, not the number of parcels carried 
         if (this.carriedParcels.length >= 3) return null; // Max parcels carried
 
         const currentPos = this.beliefs.myPosition;
         const deliveryTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
         if (!deliveryTile) return null;
 
-        // Use A* pathfinding distance for more accurate cost estimation
-        // This can be computationally expensive, so maybe limit the search range or frequency.
-        // For now, let's use A* distance for evaluation.
+        //FIXME: This could be quite expensive
         const basePathLength = this.pathfinder.findPath(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y).length;
         if (basePathLength === 0 && !this.isAtPosition(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y)) {
              console.warn("Cannot find path to closest delivery tile for detour evaluation.");
@@ -116,13 +114,11 @@ export class DeliveryStrategy {
             const totalDistance = detourDistance + pathFromParcelToDelivery.length; // Total steps for detour
 
             // Check if the detour is within the allowed distance increase compared to the base path
-            // base path length + steps to parcel + steps from parcel to delivery should not exceed a limit
-            // Let's redefine max detour distance check based on total added steps
             const addedSteps = totalDistance - basePathLength; // Steps added compared to going directly to delivery
 
             if (addedSteps <= this.maxDetourDistance) {
                 // Score: reward / (added steps + 1)
-                const detourScore = (parcel.reward * 2) / (addedSteps + 1); // Double reward contribution? Adjust as needed.
+                const detourScore = (parcel.reward * 2) / (addedSteps + 1);
 
                 if (detourScore > bestDetourScore) {
                     bestDetourScore = detourScore;
@@ -180,9 +176,7 @@ export class DeliveryStrategy {
          }
     }
 
-    // isAtPosition now checks exact integer tile coordinates
     isAtPosition(x1, y1, x2, y2) {
-         // Assuming agent position from API is already floored or is integers
          return x1 === x2 && y1 === y2;
     }
 }

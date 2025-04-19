@@ -61,7 +61,7 @@ export class Pathfinder {
         openSetNodes.set(startNode.getKey(), startNode);
 
         const directions = [
-            { dx: 0, dy: 1, action: 'move_up' },    // Note: assuming +y is up in this grid system based on usage
+            { dx: 0, dy: 1, action: 'move_up' },   
             { dx: 0, dy: -1, action: 'move_down' },
             { dx: 1, dy: 0, action: 'move_right' },
             { dx: -1, dy: 0, action: 'move_left' },

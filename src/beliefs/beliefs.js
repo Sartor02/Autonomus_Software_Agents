@@ -12,7 +12,7 @@ export class Beliefs {
         this.emptyTiles = [];
         this.myId = null;
 
-        this.mapWidth = 0; // Add map dimensions
+        this.mapWidth = 0; 
         this.mapHeight = 0;
     }
 
@@ -24,7 +24,7 @@ export class Beliefs {
               x: p.x,
               y: p.y,
               reward: p.reward,
-              originalReward: p.originalReward, // Keep original reward for efficiency calculation
+              originalReward: p.originalReward,
               carriedBy: p.carriedBy,
               // Calculate distance only if my position is known
               distance: this.myPosition ? this.calculateDistance(p.x, p.y) : Infinity
@@ -68,8 +68,6 @@ export class Beliefs {
 
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
-                // Assuming tiles is a 1D array indexed by x * height + y or similar
-                // Adjust index if needed based on actual API tile format
                 const tileIndex = x * height + y; // Common grid to 1D mapping
                 if (tileIndex >= 0 && tileIndex < tiles.length) {
                     const tile = tiles[tileIndex];

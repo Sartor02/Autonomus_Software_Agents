@@ -1,0 +1,4 @@
+- Risolvere i FIXME
+- Gestire le interazioni con gli altri agenti sulla mappa
+- Pulire il codice (Alcune funzioni si ripetono)
+- Fare test con agenti che si muovono sulla mappa

@@ -7,11 +7,6 @@ export class GreedyStrategy {
         this.explorationMap = new Map(); // {x,y}: count of times visited
         this.explorationPath = []; // Path calculated by A*
 
-        // We don't need VISION for pathfinding/exploration targeting the same way
-        // but might keep it for other heuristics or boundary checks if desired.
-        // Let's remove the fixed VISION constant for now as A* handles the map globally.
-        // this.VISION = 5; // Removed FIXED VISION
-
         this.stuckCounter = 0;
         this.lastPosition = null;
     }
@@ -34,9 +29,6 @@ export class GreedyStrategy {
 
         // We use Manhattan distance as the heuristic in A*, so it's consistent.
         const distance = this.beliefs.calculateDistance(parcel.x, parcel.y);
-        // Add distance to delivery tile for a more complete efficiency?
-        // For simplicity, let's keep it distance to parcel for pickup priority.
-        // The delivery strategy handles delivery paths.
 
         // Ensure originalReward is not zero or null to prevent division errors
         const originalReward = parcel.originalReward > 0 ? parcel.originalReward : 100;
@@ -60,7 +52,6 @@ export class GreedyStrategy {
                  console.warn("Agent seems stuck, clearing path and trying exploration.");
                  this.explorationPath = []; // Clear path to force recalculation
                  this.stuckCounter = 0;
-                 // Maybe try a random move or wait? Let's just clear path and let logic continue.
             }
          } else {
              this.stuckCounter = 0;
@@ -69,14 +60,9 @@ export class GreedyStrategy {
 
 
         // 1. Delivery priority
-        // The DeliveryStrategy will now use the Pathfinder internally
         const deliveryAction = this.deliveryStrategy.getDeliveryAction();
         if (deliveryAction) {
-             // If delivery action is a move, calculate and follow the path
              if (deliveryAction.action.startsWith('move')) {
-                  // DeliveryStrategy will calculate the target tile and movement
-                  // Its calculateMoveTowards now uses the pathfinder
-                  // We just need to return its calculated action
                   return deliveryAction;
              }
             return deliveryAction; // putdown or pickup during detour
@@ -102,7 +88,6 @@ export class GreedyStrategy {
         }
 
         // 3. Optimized exploration using Pathfinder
-        // If no path is being followed, find a new exploration target
         if (this.explorationPath.length === 0) {
              console.log("No parcel or delivery target, starting exploration...");
             const explorationTarget = this.findExplorationTargetTile(currentPos.x, currentPos.y);
@@ -113,7 +98,6 @@ export class GreedyStrategy {
             } else {
                  console.warn("Could not find an exploration target tile.");
                  // Fallback if no exploration target is found (e.g., map fully explored or stuck)
-                 // Could try a simple random valid move here if completely stuck
                   const simpleMove = this.findSimpleValidMove(currentPos.x, currentPos.y);
                   if (simpleMove) {
                       console.log("Falling back to simple valid move.");
@@ -164,20 +148,6 @@ export class GreedyStrategy {
                  minDistance = distance;
             }
         }
-
-         // If the best tile found is the current tile, and we have visited it,
-         // maybe we need to look further or for a tile with slightly more visits but far away?
-         // For now, the check `visits < minVisits` (initialized to Infinity) ensures
-         // we pick *a* tile unless all tiles have been visited max times.
-         // If all tiles have max visits, `bestTile` will be the last tile processed in the loop
-         // with the overall minimum visits (which would be the max visits in this case).
-
-        // Ensure the target tile is actually reachable (optional but robust)
-        // A* will handle reachability, so we trust the pathfinder to fail if unreachable.
-        // However, picking a non-reachable target is wasteful.
-        // A* will return an empty path if unreachable. The logic in getAction handles this.
-
-
         return bestTile;
     }
 
@@ -187,20 +157,7 @@ export class GreedyStrategy {
             return null; // No path to follow
         }
 
-        // The first node in the path is the current location, which we slice off during reconstruction.
-        // So the next step is the first element of the path array.
-        const nextStep = this.explorationPath[0];
-
-        // Check if we have already reached the next step (due to async moves)
-         // This check might be redundant if onYou updates position before next act
-         // but can help prevent requesting the same move multiple times.
-        // if (this.isAtPosition(nextStep.x, nextStep.y, currentX, currentY)) {
-        //      console.log(`Already at next step ${nextStep.x},${nextStep.y}. Removing from path.`);
-        //      this.explorationPath.shift();
-        //      return this.followExplorationPath(currentX, currentY); // Try next step or null
-        // }
-
-
+        const nextStep = this.explorationPath[0]; // Get the next step in the path
         const action = this.pathfinder.getActionToNextStep(currentX, currentY, nextStep.x, nextStep.y);
 
         if (action) {
@@ -226,9 +183,6 @@ export class GreedyStrategy {
     recordPosition(x, y) {
         const key = `${x},${y}`;
         this.explorationMap.set(key, (this.explorationMap.get(key) || 0) + 1);
-        // We don't strictly need positionHistory for this exploration map approach
-        // this.positionHistory.push({x, y});
-        // if (this.positionHistory.length > 5) this.positionHistory.shift();
     }
 
      // Simple fallback move finding (should rarely be needed with Pathfinder)
@@ -249,10 +203,7 @@ export class GreedyStrategy {
         return null; // No valid move
     }
 
-
-    // isAtPosition now checks exact integer tile coordinates
     isAtPosition(x1, y1, x2, y2) {
-        // Assuming agent position from API is already floored or is integers
         return x1 === x2 && y1 === y2;
     }
 }
