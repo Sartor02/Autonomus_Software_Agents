@@ -1,269 +1,258 @@
 export class GreedyStrategy {
-    constructor(beliefs, deliveryStrategy) {
+    constructor(beliefs, deliveryStrategy, pathfinder) {
         this.beliefs = beliefs;
         this.deliveryStrategy = deliveryStrategy;
-        this.explorationMap = new Map(); // {x,y}: count
-        this.positionHistory = []; // Last positions
-        this.explorationPath = []; // Exploration path
-        this.VISION = 5; // FIXME: Try to understand how to get it (AGENT_OBSERVATION_DISTANCE)
+        this.pathfinder = pathfinder; // Use the new pathfinder
+
+        this.explorationMap = new Map(); // {x,y}: count of times visited
+        this.explorationPath = []; // Path calculated by A*
+
+        // We don't need VISION for pathfinding/exploration targeting the same way
+        // but might keep it for other heuristics or boundary checks if desired.
+        // Let's remove the fixed VISION constant for now as A* handles the map globally.
+        // this.VISION = 5; // Removed FIXED VISION
+
+        this.stuckCounter = 0;
+        this.lastPosition = null;
     }
 
     selectBestParcel() {
         if (!this.beliefs.availableParcels.length) return null;
-        
+
         return this.beliefs.availableParcels
             .map(p => ({
                 ...p,
+                // Use beliefs.calculateDistance which uses current position
                 efficiency: this.calculateParcelEfficiency(p)
             }))
             .sort((a, b) => b.efficiency - a.efficiency)[0];
     }
 
     calculateParcelEfficiency(parcel) {
+        // Ensure distance is calculated from the agent's current position
+        if (!this.beliefs.myPosition) return -Infinity; // Cannot calculate if position is unknown
+
+        // We use Manhattan distance as the heuristic in A*, so it's consistent.
         const distance = this.beliefs.calculateDistance(parcel.x, parcel.y);
-        const timeFactor = parcel.reward / (parcel.originalReward || 100);
-        return (parcel.reward * timeFactor) / (distance + 0.1);
+        // Add distance to delivery tile for a more complete efficiency?
+        // For simplicity, let's keep it distance to parcel for pickup priority.
+        // The delivery strategy handles delivery paths.
+
+        // Ensure originalReward is not zero or null to prevent division errors
+        const originalReward = parcel.originalReward > 0 ? parcel.originalReward : 100;
+        const timeFactor = parcel.reward / originalReward;
+
+        // Avoid division by zero if distance is 0
+        return (parcel.reward * timeFactor) / (distance + 1); // Add 1 to distance
     }
 
     getAction() {
+        const currentPos = this.beliefs.myPosition;
+        if (!currentPos) {
+             console.log("Agent position unknown, waiting...");
+             return null; // Cannot act if position is unknown
+        }
+
+        // Detect if stuck (optional but helpful)
+         if (this.lastPosition && this.isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
+            this.stuckCounter++;
+            if (this.stuckCounter > 5) { // Stuck for 5 turns
+                 console.warn("Agent seems stuck, clearing path and trying exploration.");
+                 this.explorationPath = []; // Clear path to force recalculation
+                 this.stuckCounter = 0;
+                 // Maybe try a random move or wait? Let's just clear path and let logic continue.
+            }
+         } else {
+             this.stuckCounter = 0;
+         }
+         this.lastPosition = { ...currentPos };
+
+
         // 1. Delivery priority
+        // The DeliveryStrategy will now use the Pathfinder internally
         const deliveryAction = this.deliveryStrategy.getDeliveryAction();
-        if (deliveryAction) return deliveryAction;
+        if (deliveryAction) {
+             // If delivery action is a move, calculate and follow the path
+             if (deliveryAction.action.startsWith('move')) {
+                  // DeliveryStrategy will calculate the target tile and movement
+                  // Its calculateMoveTowards now uses the pathfinder
+                  // We just need to return its calculated action
+                  return deliveryAction;
+             }
+            return deliveryAction; // putdown or pickup during detour
+        }
 
         // 2. Parcel collection
         const bestParcel = this.selectBestParcel();
         if (bestParcel) {
-            if (this.isAtPosition(bestParcel.x, bestParcel.y)) {
+            // Check if we are at the parcel's exact location
+            if (this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
                 return { action: 'pickup', target: bestParcel.id };
             }
-            return this.calculateMoveTowards(bestParcel.x, bestParcel.y);
+            // If not at the parcel, calculate path to it and move
+            console.log(`Targeting parcel at ${bestParcel.x}, ${bestParcel.y}`);
+            // Calculate the path using the pathfinder only if the current path is empty or doesn't lead here
+            if (this.explorationPath.length === 0 || !this.isPathLeadingTo(this.explorationPath, bestParcel.x, bestParcel.y)) {
+                 this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, bestParcel.x, bestParcel.y);
+                 console.log(`Calculated new path to parcel: ${this.explorationPath.length} steps.`);
+            }
+             // Follow the calculated path
+             return this.followExplorationPath(currentPos.x, currentPos.y);
+
         }
 
-        // 3. Optimized exploration
-        return this.smartExplore();
-    }
-
-    calculateMoveTowards(targetX, targetY) {
-        // Create a target object for calculatePathTo
-        const targetTile = { x: targetX, y: targetY };
-        console.log(`Calculating path to ${targetX}, ${targetY}`);
-
-        // Calculate the path
-        this.explorationPath = this.calculatePathTo(targetTile);
-
-        // Perform the first step of the path (or handle empty/failed path)
-        return this.followExplorationPath();
-    }
-
-    smartExplore() {
-        // Use the exploration path if it exists
-        if (this.explorationPath.length > 0) {
-            return this.followExplorationPath();
+        // 3. Optimized exploration using Pathfinder
+        // If no path is being followed, find a new exploration target
+        if (this.explorationPath.length === 0) {
+             console.log("No parcel or delivery target, starting exploration...");
+            const explorationTarget = this.findExplorationTargetTile(currentPos.x, currentPos.y);
+            if (explorationTarget) {
+                console.log(`Exploration target found: ${explorationTarget.x}, ${explorationTarget.y}`);
+                this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, explorationTarget.x, explorationTarget.y);
+                console.log(`Calculated exploration path: ${this.explorationPath.length} steps.`);
+            } else {
+                 console.warn("Could not find an exploration target tile.");
+                 // Fallback if no exploration target is found (e.g., map fully explored or stuck)
+                 // Could try a simple random valid move here if completely stuck
+                  const simpleMove = this.findSimpleValidMove(currentPos.x, currentPos.y);
+                  if (simpleMove) {
+                      console.log("Falling back to simple valid move.");
+                      return simpleMove;
+                  }
+                  console.error("No exploration target, no simple valid move. Agent is likely stuck or map explored.");
+                  return null; // Cannot move
+            }
         }
 
-        // Look for the least explored spawn tiles
-        const targetTile = this.findLeastExploredSpawnTile();
-        if (targetTile) {
-            this.explorationPath = this.calculatePathTo(targetTile);
-            return this.followExplorationPath();
-        }
-
-        // If no path is available, fallback to a valid tile
-        let current = { ...this.beliefs.myPosition };
-        const validTile = this.findNearestValidTile(current);
-        if (validTile) {
-            return this.calculateMoveTowards(validTile.x, validTile.y);
-        } 
-
-        // Fallback to spiral exploration if no valid tile is found
-        console.log('No valid tile found, falling back to spiral exploration');
-        return this.spiralExploration();
+        // Follow the exploration path if one exists
+         return this.followExplorationPath(currentPos.x, currentPos.y);
     }
 
-    findLeastExploredSpawnTile() {
+    // Find the least visited walkable tile as an exploration target
+    findExplorationTargetTile(currentX, currentY) {
+        const walkableTiles = this.beliefs.getAllWalkableTiles();
+        if (walkableTiles.length === 0) {
+            console.warn("No walkable tiles known for exploration.");
+            return null;
+        }
+
         let minVisits = Infinity;
         let bestTile = null;
-    
-        const minX = this.VISION - 1;
-        const minY = this.VISION - 1;
-        const maxX = this.beliefs.mapWidth - this.VISION;
-        const maxY = this.beliefs.mapHeight - this.VISION;
-    
-        for (const tile of this.beliefs.spawnTiles) {
-            if (tile.x < minX || tile.x > maxX || tile.y < minY || tile.y > maxY) continue;
-    
-            const visits = this.explorationMap.get(`${tile.x},${tile.y}`) || 0;
+        let minDistance = Infinity; // Break ties by distance
+
+        // Prioritize nearby less-visited tiles
+        // Sort tiles by distance first to bias towards closer ones with same visit count
+        const sortedWalkableTiles = walkableTiles.sort((a, b) => {
+             const distA = this.pathfinder.heuristic(currentX, currentY, a.x, a.y);
+             const distB = this.pathfinder.heuristic(currentX, currentY, b.x, b.y);
+             return distA - distB;
+        });
+
+        for (const tile of sortedWalkableTiles) {
+            const key = `${tile.x},${tile.y}`;
+            const visits = this.explorationMap.get(key) || 0;
+            const distance = this.pathfinder.heuristic(currentX, currentY, tile.x, tile.y);
+
+
+            // Criteria: less visited, or same visits but closer
             if (visits < minVisits) {
                 minVisits = visits;
                 bestTile = tile;
+                minDistance = distance;
+            } else if (visits === minVisits && distance < minDistance) {
+                 bestTile = tile;
+                 minDistance = distance;
             }
         }
-        console.log(`Best spawn tile: ${bestTile.x}, ${bestTile.y} with ${minVisits} visits`);
-    
+
+         // If the best tile found is the current tile, and we have visited it,
+         // maybe we need to look further or for a tile with slightly more visits but far away?
+         // For now, the check `visits < minVisits` (initialized to Infinity) ensures
+         // we pick *a* tile unless all tiles have been visited max times.
+         // If all tiles have max visits, `bestTile` will be the last tile processed in the loop
+         // with the overall minimum visits (which would be the max visits in this case).
+
+        // Ensure the target tile is actually reachable (optional but robust)
+        // A* will handle reachability, so we trust the pathfinder to fail if unreachable.
+        // However, picking a non-reachable target is wasteful.
+        // A* will return an empty path if unreachable. The logic in getAction handles this.
+
+
         return bestTile;
     }
-    
 
-    spiralExploration() {
-        const currentPos = this.beliefs.myPosition;
-        const minX = this.VISION - 1;
-        const minY = this.VISION - 1;
-        const maxX = this.beliefs.mapWidth - this.VISION;
-        const maxY = this.beliefs.mapHeight - this.VISION;
-    
-        const directions = [
-            { dx: 1, dy: 0, action: 'move_right' },
-            { dx: 0, dy: 1, action: 'move_up' },
-            { dx: -1, dy: 0, action: 'move_left' },
-            { dx: 0, dy: -1, action: 'move_down' }
-        ];
-    
-        const scoredDirections = directions.map(dir => {
-            const targetX = currentPos.x + dir.dx;
-            const targetY = currentPos.y + dir.dy;
-    
-            const withinBounds = (
-                targetX >= minX &&
-                targetX <= maxX &&
-                targetY >= minY &&
-                targetY <= maxY
-            );
 
-            const visits = this.explorationMap.get(`${targetX},${targetY}`) || 0;
-            const isValid = this.isValidMove(targetX, targetY);
-            return { ...dir, score: withinBounds && isValid ? -visits : -Infinity };
-        }).sort((a, b) => b.score - a.score);
-
-        for (const dir of scoredDirections) {
-            if (dir.score > -Infinity) {
-                return { action: dir.action };
-            }
+    followExplorationPath(currentX, currentY) {
+        if (this.explorationPath.length === 0) {
+            return null; // No path to follow
         }
 
-        // Fallback: find any valid move
-        const fallback = directions.find(dir => {
-            const tx = currentPos.x + dir.dx;
-            const ty = currentPos.y + dir.dy;
-            return this.isValidMove(tx, ty);
-        });
+        // The first node in the path is the current location, which we slice off during reconstruction.
+        // So the next step is the first element of the path array.
+        const nextStep = this.explorationPath[0];
 
-        if (fallback) {
-            return { action: fallback.action };
-        }
+        // Check if we have already reached the next step (due to async moves)
+         // This check might be redundant if onYou updates position before next act
+         // but can help prevent requesting the same move multiple times.
+        // if (this.isAtPosition(nextStep.x, nextStep.y, currentX, currentY)) {
+        //      console.log(`Already at next step ${nextStep.x},${nextStep.y}. Removing from path.`);
+        //      this.explorationPath.shift();
+        //      return this.followExplorationPath(currentX, currentY); // Try next step or null
+        // }
 
-        // Last resort: stay in place or return null
-        return null;
-    }
-    
 
-    // Helper methods
-    calculatePathTo(targetTile) {
-        const path = [];
-        let current = { ...this.beliefs.myPosition };
+        const action = this.pathfinder.getActionToNextStep(currentX, currentY, nextStep.x, nextStep.y);
 
-        while (!this.isAtPosition(current.x, current.y, targetTile.x, targetTile.y)) {
-            const dx = Math.sign(targetTile.x - current.x);
-            const dy = Math.sign(targetTile.y - current.y);
-
-            let moved = false;
-
-            if (dx !== 0 && this.isValidMove(current.x + dx, current.y)) {
-                current.x += dx;
-                moved = true;
-            } else if (dy !== 0 && this.isValidMove(current.x, current.y + dy)) {
-                current.y += dy;
-                moved = true;
-            }
-
-            if (moved) {
-                path.push({ ...current });
-            } else {
-                // No valid moves available, find the nearest valid tile
-                const validTile = this.findNearestValidTile(current);
-                if (validTile) {
-                    targetTile = validTile; // Update target to the nearest valid tile
-                } else {
-                    break; // No valid tiles found, stop the path calculation
-                }
-            }
-        }
-
-        return path;
-    }
-
-    findNearestValidTile(start) {
-        const directions = [
-            { dx: 1, dy: 0 },
-            { dx: 0, dy: 1 },
-            { dx: -1, dy: 0 },
-            { dx: 0, dy: -1 }
-        ];
-
-        const queue = [start];
-        const visited = new Set();
-        visited.add(`${start.x},${start.y}`);
-
-        while (queue.length > 0) {
-            const current = queue.shift();
-
-            for (const dir of directions) {
-                const nextX = current.x + dir.dx;
-                const nextY = current.y + dir.dy;
-                const key = `${nextX},${nextY}`;
-
-                if (!visited.has(key)) {
-                    visited.add(key);
-
-                    if (this.isValidMove(nextX, nextY)) {
-                        return { x: nextX, y: nextY };
-                    }
-
-                    queue.push({ x: nextX, y: nextY });
-                }
-            }
-        }
-
-        return null; // No valid tile found
-    }
-
-    followExplorationPath() {
-        if (this.explorationPath.length === 0) return null;
-        
-        const nextStep = this.explorationPath.shift();
-        this.recordPosition(nextStep.x, nextStep.y);
-        return { action: this.getDirectionTo(nextStep.x, nextStep.y) };
-    }
-
-    getDirectionTo(targetX, targetY) {
-        const current = this.beliefs.myPosition;
-        const dx = targetX - current.x;
-        const dy = targetY - current.y;
-        
-        if (Math.abs(dx) > Math.abs(dy)) {
-            return dx > 0 ? 'move_right' : 'move_left';
+        if (action) {
+            // Record the tile we are moving *to* as visited.
+            this.recordPosition(nextStep.x, nextStep.y);
+            this.explorationPath.shift(); // Remove the step we are about to take
+            return { action: action };
         } else {
-            return dy > 0 ? 'move_up' : 'move_down';
+            console.error(`Could not determine action for step ${currentX},${currentY} -> ${nextStep.x},${nextStep.y}. Clearing path.`);
+            this.explorationPath = []; // Clear the path if something is wrong
+            return null;
         }
     }
+
+     // Helper to check if the current path is leading to a specific target
+     isPathLeadingTo(path, targetX, targetY) {
+         if (path.length === 0) return false;
+         const finalStep = path[path.length - 1];
+         return finalStep.x === targetX && finalStep.y === targetY;
+     }
+
 
     recordPosition(x, y) {
         const key = `${x},${y}`;
         this.explorationMap.set(key, (this.explorationMap.get(key) || 0) + 1);
-        this.positionHistory.push({x, y});
-        if (this.positionHistory.length > 5) this.positionHistory.shift();
+        // We don't strictly need positionHistory for this exploration map approach
+        // this.positionHistory.push({x, y});
+        // if (this.positionHistory.length > 5) this.positionHistory.shift();
     }
 
-    isValidMove(x, y) {
-        return this.beliefs.isWalkable(x, y) &&
-               (this.beliefs.normalTiles.some(t => t.x === x && t.y === y) ||
-                this.beliefs.spawnTiles.some(t => t.x === x && t.y === y));
-    }
-
-    isAtPosition(x1, y1, x2, y2) {
-        if (x2 === undefined || y2 === undefined) {
-            const current = this.beliefs.myPosition;
-            return Math.floor(current.x) === x1 && Math.floor(current.y) === y1;
+     // Simple fallback move finding (should rarely be needed with Pathfinder)
+    findSimpleValidMove(currentX, currentY) {
+         const directions = [
+            { dx: 0, dy: 1, action: 'move_up' },
+            { dx: 0, dy: -1, action: 'move_down' },
+            { dx: 1, dy: 0, action: 'move_right' },
+            { dx: -1, dy: 0, action: 'move_left' },
+        ];
+        for (const dir of directions) {
+            const nextX = currentX + dir.dx;
+            const nextY = currentY + dir.dy;
+            if (this.beliefs.isWalkable(nextX, nextY)) {
+                return { action: dir.action };
+            }
         }
+        return null; // No valid move
+    }
+
+
+    // isAtPosition now checks exact integer tile coordinates
+    isAtPosition(x1, y1, x2, y2) {
+        // Assuming agent position from API is already floored or is integers
         return x1 === x2 && y1 === y2;
     }
 }

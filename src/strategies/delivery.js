@@ -1,13 +1,15 @@
 export class DeliveryStrategy {
-    constructor(beliefs) {
+    constructor(beliefs, pathfinder) {
         this.beliefs = beliefs;
+        this.pathfinder = pathfinder; // Use the new pathfinder
         this.carriedParcels = [];
-        this.deliveryThreshold = 12; // Reward minimo per deviare
-        this.maxDetourDistance = 3; // Distanza massima per deviazione
+        this.deliveryThreshold = 12; // Minimum reward to consider a parcel for detour
+        this.maxDetourDistance = 5; // Increased max detour distance slightly
+        this.deliveryPath = []; // Path calculated by A* for delivery
     }
 
     shouldDeliver() {
-        // Consegna sempre se abbiamo pacchi
+        // Deliver always if we have parcels
         return this.carriedParcels.length > 0;
     }
 
@@ -15,80 +17,172 @@ export class DeliveryStrategy {
         if (!this.shouldDeliver()) return null;
 
         const currentPos = this.beliefs.myPosition;
-        
-        // Se siamo già su una tile di consegna
+         if (!currentPos) {
+             console.log("Delivery strategy: Agent position unknown.");
+             return null;
+         }
+
+        // If we are already on a delivery tile
         if (this.beliefs.isDeliveryTile(currentPos.x, currentPos.y)) {
+             console.log("At delivery tile, putting down.");
+            this.deliveryPath = []; // Clear delivery path after arriving
             return { action: 'putdown' };
         }
 
-        // Valuta se prendere un pacco vicino durante la consegna
-        const detourParcel = this.evaluateDetourParcels();
-        if (detourParcel) {
-            if (this.isAtPosition(detourParcel.x, detourParcel.y)) {
-                return { action: 'pickup', target: detourParcel.id };
-            }
-            return this.calculateMoveTowards(detourParcel.x, detourParcel.y);
+        // Evaluate if picking up a nearby parcel during delivery is worthwhile
+        // Only evaluate if we have capacity and not already following a delivery path
+        if (this.carriedParcels.length < 3 ){//&& this.deliveryPath.length === 0) {
+             const detourParcel = this.evaluateDetourParcels();
+             if (detourParcel) {
+                 console.log(`Considering detour for parcel ${detourParcel.id} at ${detourParcel.x}, ${detourParcel.y}`);
+                 // Check if at detour parcel location
+                 if (this.isAtPosition(detourParcel.x, detourParcel.y, currentPos.x, currentPos.y)) {
+                     console.log(`At detour parcel, picking up.`);
+                     return { action: 'pickup', target: detourParcel.id };
+                 }
+                 // Calculate path to detour parcel (this overrides delivery path temporarily)
+                  if (this.deliveryPath.length === 0 || !this.isPathLeadingTo(this.deliveryPath, detourParcel.x, detourParcel.y)) {
+                     this.deliveryPath = this.pathfinder.findPath(currentPos.x, currentPos.y, detourParcel.x, detourParcel.y);
+                     console.log(`Calculated detour path: ${this.deliveryPath.length} steps.`);
+                  }
+                 // Follow the detour path
+                 return this.followDeliveryPath(currentPos.x, currentPos.y);
+             }
         }
 
-        // Prosegui verso la consegna
-        return this.moveToDeliveryTile();
+
+        // If not at a delivery tile and not taking a detour, proceed towards delivery
+         // If delivery path is empty or doesn't lead to the closest delivery tile, calculate it
+         const closestDeliveryTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
+         if (!closestDeliveryTile) {
+             console.warn("No delivery tiles found in beliefs.");
+             this.deliveryPath = []; // Clear path if target disappeared
+             return null; // Cannot deliver if no delivery tile exists
+         }
+
+         if (this.deliveryPath.length === 0 || !this.isPathLeadingTo(this.deliveryPath, closestDeliveryTile.x, closestDeliveryTile.y)) {
+             console.log(`Calculating path to closest delivery tile ${closestDeliveryTile.x}, ${closestDeliveryTile.y}`);
+              this.deliveryPath = this.pathfinder.findPath(currentPos.x, currentPos.y, closestDeliveryTile.x, closestDeliveryTile.y);
+              console.log(`Calculated delivery path: ${this.deliveryPath.length} steps.`);
+         }
+
+        // Follow the calculated delivery path
+         return this.followDeliveryPath(currentPos.x, currentPos.y);
     }
 
     evaluateDetourParcels() {
-        if (this.carriedParcels.length >= 3) return null; // Troppi pacchi già caricati
+        if (this.carriedParcels.length >= 3) return null; // Max parcels carried
 
         const currentPos = this.beliefs.myPosition;
         const deliveryTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
         if (!deliveryTile) return null;
 
-        const basePathLength = this.beliefs.calculateDistance(
-            currentPos.x, currentPos.y, 
-            deliveryTile.x, deliveryTile.y
-        );
-
-        return this.beliefs.availableParcels
-            .filter(p => !p.carriedBy && p.reward > this.deliveryThreshold)
-            .map(p => {
-                const detourDistance = this.beliefs.calculateDistance(currentPos.x, currentPos.y, p.x, p.y);
-                const totalDistance = detourDistance + 
-                    this.beliefs.calculateDistance(p.x, p.y, deliveryTile.x, deliveryTile.y);
-                
-                return {
-                    ...p,
-                    detourScore: (p.reward * 2) / (totalDistance - basePathLength + 1),
-                    detourDistance
-                };
-            })
-            .filter(p => p.detourDistance <= this.maxDetourDistance)
-            .sort((a, b) => b.detourScore - a.detourScore)[0];
-    }
-
-    moveToDeliveryTile() {
-        const currentPos = this.beliefs.myPosition;
-        const targetTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
-        if (!targetTile) return null;
-
-        return this.calculateMoveTowards(targetTile.x, targetTile.y);
-    }
-
-    calculateMoveTowards(targetX, targetY) {
-        const currentPos = this.beliefs.myPosition;
-        const dx = targetX - currentPos.x;
-        const dy = targetY - currentPos.y;
-        
-        if (Math.abs(dx) > Math.abs(dy)) {
-            return { action: dx > 0 ? 'move_right' : 'move_left' };
-        } else {
-            return { action: dy > 0 ? 'move_up' : 'move_down' };
+        // Use A* pathfinding distance for more accurate cost estimation
+        // This can be computationally expensive, so maybe limit the search range or frequency.
+        // For now, let's use A* distance for evaluation.
+        const basePathLength = this.pathfinder.findPath(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y).length;
+        if (basePathLength === 0 && !this.isAtPosition(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y)) {
+             console.warn("Cannot find path to closest delivery tile for detour evaluation.");
+             return null; // Cannot evaluate detour if delivery is unreachable
         }
+
+
+        let bestDetourParcel = null;
+        let bestDetourScore = -Infinity;
+
+        // Filter parcels by threshold and check reachability
+         const potentialDetourParcels = this.beliefs.availableParcels
+             .filter(p => !p.carriedBy && p.reward > this.deliveryThreshold)
+             .filter(p => {
+                  // Quick check if within rough Manhattan distance first
+                  const manhattanDist = this.beliefs.calculateDistance(p.x, p.y);
+                  return manhattanDist <= this.maxDetourDistance;
+             });
+
+
+        for (const parcel of potentialDetourParcels) {
+             // Calculate detour path length using A*
+             const pathToParcel = this.pathfinder.findPath(currentPos.x, currentPos.y, parcel.x, parcel.y);
+             if (pathToParcel.length === 0 && !this.isAtPosition(currentPos.x, currentPos.y, parcel.x, parcel.y)) {
+                  continue; // Parcel is unreachable
+             }
+
+             const pathFromParcelToDelivery = this.pathfinder.findPath(parcel.x, parcel.y, deliveryTile.x, deliveryTile.y);
+             if (pathFromParcelToDelivery.length === 0 && !this.isAtPosition(parcel.x, parcel.y, deliveryTile.x, deliveryTile.y)) {
+                 continue; // Delivery tile is unreachable from parcel
+             }
+
+            const detourDistance = pathToParcel.length; // Steps to reach the parcel
+            const totalDistance = detourDistance + pathFromParcelToDelivery.length; // Total steps for detour
+
+            // Check if the detour is within the allowed distance increase compared to the base path
+            // base path length + steps to parcel + steps from parcel to delivery should not exceed a limit
+            // Let's redefine max detour distance check based on total added steps
+            const addedSteps = totalDistance - basePathLength; // Steps added compared to going directly to delivery
+
+            if (addedSteps <= this.maxDetourDistance) {
+                // Score: reward / (added steps + 1)
+                const detourScore = (parcel.reward * 2) / (addedSteps + 1); // Double reward contribution? Adjust as needed.
+
+                if (detourScore > bestDetourScore) {
+                    bestDetourScore = detourScore;
+                    bestDetourParcel = parcel;
+                }
+            }
+        }
+
+        if (bestDetourParcel) {
+             console.log(`Selected detour parcel ${bestDetourParcel.id} with score ${bestDetourScore}`);
+        }
+
+        return bestDetourParcel;
     }
 
-    updateCarriedParcels(parcels) {
-        this.carriedParcels = parcels.filter(p => p.carriedBy === this.beliefs.myId);
+
+    followDeliveryPath(currentX, currentY) {
+         if (this.deliveryPath.length === 0) {
+             return null; // No path to follow
+         }
+
+         const nextStep = this.deliveryPath[0];
+
+         const action = this.pathfinder.getActionToNextStep(currentX, currentY, nextStep.x, nextStep.y);
+
+         if (action) {
+             this.deliveryPath.shift(); // Remove the step we are about to take
+             return { action: action };
+         } else {
+             console.error(`Delivery strategy: Could not determine action for step ${currentX},${currentY} -> ${nextStep.x},${nextStep.y}. Clearing path.`);
+             this.deliveryPath = [];
+             return null;
+         }
     }
 
-    isAtPosition(x, y) {
-        const current = this.beliefs.myPosition;
-        return Math.floor(current.x) === x && Math.floor(current.y) === y;
+    // Helper to check if the current path is leading to a specific target
+     isPathLeadingTo(path, targetX, targetY) {
+         if (path.length === 0) return false;
+         const finalStep = path[path.length - 1];
+         return finalStep.x === targetX && finalStep.y === targetY;
+     }
+
+
+    updateCarriedParcels(allParcels) {
+        // Find parcels carried by this agent
+         if (this.beliefs.myId !== null) {
+             this.carriedParcels = allParcels.filter(p => p.carriedBy === this.beliefs.myId);
+             // Clear delivery path if we just dropped off the last parcel
+             if (this.carriedParcels.length === 0 && this.deliveryPath.length > 0) {
+                 console.log("Just delivered last parcel, clearing delivery path.");
+                 this.deliveryPath = [];
+             }
+         } else {
+             this.carriedParcels = []; // Cannot determine carried parcels without agent ID
+         }
+    }
+
+    // isAtPosition now checks exact integer tile coordinates
+    isAtPosition(x1, y1, x2, y2) {
+         // Assuming agent position from API is already floored or is integers
+         return x1 === x2 && y1 === y2;
     }
 }
