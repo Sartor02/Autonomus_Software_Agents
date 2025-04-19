@@ -68,7 +68,15 @@ export class GreedyStrategy {
             return this.followExplorationPath();
         }
 
-        // Default: spiral pattern from edges inward
+        // If no path is available, fallback to a valid tile
+        let current = { ...this.beliefs.myPosition };
+        const validTile = this.findNearestValidTile(current);
+        if (validTile) {
+            return this.calculateMoveTowards(validTile.x, validTile.y);
+        } 
+
+        // Fallback to spiral exploration if no valid tile is found
+        console.log('No valid tile found, falling back to spiral exploration');
         return this.spiralExploration();
     }
 
@@ -120,36 +128,31 @@ export class GreedyStrategy {
                 targetY >= minY &&
                 targetY <= maxY
             );
-    
+
             const visits = this.explorationMap.get(`${targetX},${targetY}`) || 0;
-            return { ...dir, score: withinBounds ? -visits : -Infinity };
+            const isValid = this.isValidMove(targetX, targetY);
+            return { ...dir, score: withinBounds && isValid ? -visits : -Infinity };
         }).sort((a, b) => b.score - a.score);
-    
+
         for (const dir of scoredDirections) {
-            const targetX = currentPos.x + dir.dx;
-            const targetY = currentPos.y + dir.dy;
-            if (dir.score > -Infinity && this.isValidMove(targetX, targetY)) {
+            if (dir.score > -Infinity) {
                 return { action: dir.action };
             }
         }
-    
-        // Fallback within bounds
+
+        // Fallback: find any valid move
         const fallback = directions.find(dir => {
             const tx = currentPos.x + dir.dx;
             const ty = currentPos.y + dir.dy;
-            return (
-                tx >= minX && tx <= maxX &&
-                ty >= minY && ty <= maxY &&
-                this.isValidMove(tx, ty)
-            );
+            return this.isValidMove(tx, ty);
         });
-    
+
         if (fallback) {
             return { action: fallback.action };
         }
-    
-        // Final fallback (any valid direction)
-        return { action: directions[Math.floor(Math.random() * directions.length)].action };
+
+        // Last resort: stay in place or return null
+        return null;
     }
     
 
@@ -157,23 +160,70 @@ export class GreedyStrategy {
     calculatePathTo(targetTile) {
         const path = [];
         let current = { ...this.beliefs.myPosition };
-        
+
         while (!this.isAtPosition(current.x, current.y, targetTile.x, targetTile.y)) {
             const dx = Math.sign(targetTile.x - current.x);
             const dy = Math.sign(targetTile.y - current.y);
-            
+
+            let moved = false;
+
             if (dx !== 0 && this.isValidMove(current.x + dx, current.y)) {
                 current.x += dx;
+                moved = true;
             } else if (dy !== 0 && this.isValidMove(current.x, current.y + dy)) {
                 current.y += dy;
-            } else {
-                break; // Path blocked
+                moved = true;
             }
-            
-            path.push({ ...current });
+
+            if (moved) {
+                path.push({ ...current });
+            } else {
+                // No valid moves available, find the nearest valid tile
+                const validTile = this.findNearestValidTile(current);
+                if (validTile) {
+                    targetTile = validTile; // Update target to the nearest valid tile
+                } else {
+                    break; // No valid tiles found, stop the path calculation
+                }
+            }
         }
-        
+
         return path;
+    }
+
+    findNearestValidTile(start) {
+        const directions = [
+            { dx: 1, dy: 0 },
+            { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 },
+            { dx: 0, dy: -1 }
+        ];
+
+        const queue = [start];
+        const visited = new Set();
+        visited.add(`${start.x},${start.y}`);
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+
+            for (const dir of directions) {
+                const nextX = current.x + dir.dx;
+                const nextY = current.y + dir.dy;
+                const key = `${nextX},${nextY}`;
+
+                if (!visited.has(key)) {
+                    visited.add(key);
+
+                    if (this.isValidMove(nextX, nextY)) {
+                        return { x: nextX, y: nextY };
+                    }
+
+                    queue.push({ x: nextX, y: nextY });
+                }
+            }
+        }
+
+        return null; // No valid tile found
     }
 
     followExplorationPath() {
@@ -204,8 +254,9 @@ export class GreedyStrategy {
     }
 
     isValidMove(x, y) {
-        return this.beliefs.normalTiles.some(t => t.x === x && t.y === y) ||
-               this.beliefs.spawnTiles.some(t => t.x === x && t.y === y);
+        return this.beliefs.isWalkable(x, y) &&
+               (this.beliefs.normalTiles.some(t => t.x === x && t.y === y) ||
+                this.beliefs.spawnTiles.some(t => t.x === x && t.y === y));
     }
 
     isAtPosition(x1, y1, x2, y2) {
