@@ -6,11 +6,27 @@ export class DeliveryStrategy {
         this.deliveryThreshold = 12; // Minimum reward to consider a parcel for detour
         this.maxDetourDistance = 5; // Increased max detour distance slightly
         this.deliveryPath = [];
+
+        // Variables to manage being blocked by other agents during delivery
+        this.blockedTargetTile = null;
+        this.blockedCounter = 0;
+        this.BLOCKED_TIMEOUT = 2; // Threshold for blocked target tile (in turns)
     }
 
     shouldDeliver() {
         // Deliver always if we have parcels
         return this.carriedParcels.length > 0;
+    }
+
+      // Helper method to check if a tile is currently blocked by another agent
+      isBlockedByOtherAgent(x, y) {
+        if (!this.beliefs.myId || !this.beliefs.agents) return false;
+        // Check if any agent OTHER than me is at the specified coordinates
+        return this.beliefs.agents.some(agent =>
+            agent.id !== this.beliefs.myId &&
+            Math.floor(agent.x) === x &&
+            Math.floor(agent.y) === y
+        );
     }
 
     getDeliveryAction() {
@@ -30,24 +46,21 @@ export class DeliveryStrategy {
         }
 
         // Evaluate if picking up a nearby parcel during delivery is worthwhile
-        //FIXME: This if condition should check the reward time of the parcel, not the number of parcels carried 
-        if (this.carriedParcels.length < 3 ){
-             const detourParcel = this.evaluateDetourParcels();
-             if (detourParcel) {
-                 console.log(`Considering detour for parcel ${detourParcel.id} at ${detourParcel.x}, ${detourParcel.y}`);
-                 // Check if at detour parcel location
-                 if (this.isAtPosition(detourParcel.x, detourParcel.y, currentPos.x, currentPos.y)) {
-                     console.log(`At detour parcel, picking up.`);
-                     return { action: 'pickup', target: detourParcel.id };
-                 }
-                 // Calculate path to detour parcel (this overrides delivery path temporarily)
-                  if (this.deliveryPath.length === 0 || !this.isPathLeadingTo(this.deliveryPath, detourParcel.x, detourParcel.y)) {
-                     this.deliveryPath = this.pathfinder.findPath(currentPos.x, currentPos.y, detourParcel.x, detourParcel.y);
-                     console.log(`Calculated detour path: ${this.deliveryPath.length} steps.`);
-                  }
-                 // Follow the detour path
-                 return this.followDeliveryPath(currentPos.x, currentPos.y);
-             }
+        const detourParcel = this.evaluateDetourParcels();
+        if (detourParcel) {
+            console.log(`Considering detour for parcel ${detourParcel.id} at ${detourParcel.x}, ${detourParcel.y}`);
+            // Check if at detour parcel location
+            if (this.isAtPosition(detourParcel.x, detourParcel.y, currentPos.x, currentPos.y)) {
+                console.log(`At detour parcel, picking up.`);
+                return { action: 'pickup', target: detourParcel.id };
+            }
+            // Calculate path to detour parcel (this overrides delivery path temporarily)
+            if (this.deliveryPath.length === 0 || !this.isPathLeadingTo(this.deliveryPath, detourParcel.x, detourParcel.y)) {
+                this.deliveryPath = this.pathfinder.findPath(currentPos.x, currentPos.y, detourParcel.x, detourParcel.y);
+                console.log(`Calculated detour path: ${this.deliveryPath.length} steps.`);
+            }
+            // Follow the detour path
+            return this.followDeliveryPath(currentPos.x, currentPos.y);
         }
 
 
@@ -70,14 +83,10 @@ export class DeliveryStrategy {
     }
 
     evaluateDetourParcels() {
-        //FIXME: As the if above, this should check the reward time of the parcel, not the number of parcels carried 
-        if (this.carriedParcels.length >= 3) return null; // Max parcels carried
-
         const currentPos = this.beliefs.myPosition;
         const deliveryTile = this.beliefs.getClosestDeliveryTile(currentPos.x, currentPos.y);
         if (!deliveryTile) return null;
 
-        //FIXME: This could be quite expensive
         const basePathLength = this.pathfinder.findPath(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y).length;
         if (basePathLength === 0 && !this.isAtPosition(currentPos.x, currentPos.y, deliveryTile.x, deliveryTile.y)) {
              console.warn("Cannot find path to closest delivery tile for detour evaluation.");
@@ -136,23 +145,64 @@ export class DeliveryStrategy {
 
 
     followDeliveryPath(currentX, currentY) {
-         if (this.deliveryPath.length === 0) {
-             return null; // No path to follow
-         }
+        if (this.deliveryPath.length === 0) {
+            // If the path is empty, reset block state
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
+            return null; // No path to follow
+        }
 
-         const nextStep = this.deliveryPath[0];
+        const nextStep = this.deliveryPath[0];
+        const targetX = nextStep.x;
+        const targetY = nextStep.y;
 
-         const action = this.pathfinder.getActionToNextStep(currentX, currentY, nextStep.x, nextStep.y);
+        // Check if the destination tile is blocked by another agent
+        const isBlocked = this.isBlockedByOtherAgent(targetX, targetY); // Use the helper method
 
-         if (action) {
-             this.deliveryPath.shift(); // Remove the step we are about to take
-             return { action: action };
-         } else {
-             console.error(`Delivery strategy: Could not determine action for step ${currentX},${currentY} -> ${nextStep.x},${nextStep.y}. Clearing path.`);
-             this.deliveryPath = [];
-             return null;
-         }
-    }
+        if (isBlocked) {
+            // Check if we are trying to reach the same blocked tile as last turn
+            if (this.blockedTargetTile && this.blockedTargetTile.x === targetX && this.blockedTargetTile.y === targetY) {
+                this.blockedCounter++;
+                console.log(`Delivery: Still blocked at ${targetX},${targetY}. Count: ${this.blockedCounter}`);
+
+                if (this.blockedCounter >= this.BLOCKED_TIMEOUT) {
+                    console.warn(`Delivery: Blocked by agent at ${targetX},${targetY} for ${this.BLOCKED_TIMEOUT} turns. Clearing path to recalculate.`);
+                    this.deliveryPath = []; // Clear the current path
+                    this.blockedTargetTile = null; // Reset block state
+                    this.blockedCounter = 0;
+                    // The next call to getDeliveryAction() will see deliveryPath is empty and recalculate
+                    return null; // Do not attempt to move this turn
+                }
+            } else {
+                // Blocked on a new target tile, reset counter
+                console.log(`Delivery: Blocked at new tile ${targetX},${targetY}. Starting block counter.`);
+                this.blockedTargetTile = { x: targetX, y: targetY };
+                this.blockedCounter = 1;
+            }
+
+            // If blocked but timeout not reached, wait (return null)
+            return null;
+        } else {
+            // If not blocked, reset block state
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
+        }
+
+
+        // If not blocked, determine the move action
+        const action = this.pathfinder.getActionToNextStep(currentX, currentY, targetX, targetY);
+
+        if (action) {
+            this.deliveryPath.shift(); // Remove the step only if we are about to take it
+            return { action: action };
+        } else {
+            console.error(`Delivery strategy: Could not determine action for step ${currentX},${currentY} -> ${targetX},${targetY}. Clearing path.`);
+            this.deliveryPath = [];
+            this.blockedTargetTile = null; // Reset block state
+            this.blockedCounter = 0;
+            return null;
+        }
+   }
 
     // Helper to check if the current path is leading to a specific target
      isPathLeadingTo(path, targetX, targetY) {
@@ -162,14 +212,16 @@ export class DeliveryStrategy {
      }
 
 
-    updateCarriedParcels(allParcels) {
-        // Find parcels carried by this agent
-         if (this.beliefs.myId !== null) {
+     updateCarriedParcels(allParcels) {
+        if (this.beliefs.myId !== null) {
              this.carriedParcels = allParcels.filter(p => p.carriedBy === this.beliefs.myId);
              // Clear delivery path if we just dropped off the last parcel
              if (this.carriedParcels.length === 0 && this.deliveryPath.length > 0) {
                  console.log("Just delivered last parcel, clearing delivery path.");
                  this.deliveryPath = [];
+                  // Also reset blocking state if path is cleared
+                  this.blockedTargetTile = null;
+                  this.blockedCounter = 0;
              }
          } else {
              this.carriedParcels = []; // Cannot determine carried parcels without agent ID

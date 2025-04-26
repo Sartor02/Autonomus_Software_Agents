@@ -114,15 +114,29 @@ export class Beliefs {
         return Math.abs(x - this.myPosition.x) + Math.abs(y - this.myPosition.y);
     }
 
-     isWalkable(x, y) {
+    isWalkable(x, y) {
         // Check boundaries first
         if (x < 0 || x >= this.mapWidth || y < 0 || y >= this.mapHeight) {
             return false;
         }
-        // A tile is walkable if it's not an empty tile (type 0)
-        return !this.emptyTiles.some(t => t.x === x && t.y === y);
-    }
 
+        // A tile is walkable if it's not an empty tile (type 0)
+        const isStaticObstacle = this.emptyTiles.some(t => t.x === x && t.y === y);
+        if (isStaticObstacle) {
+            return false;
+        }
+
+        // Also check if another agent is currently on this tile
+        // We only care about *other* agents blocking the path
+        const isBlockedByOtherAgent = this.agents.some(agent =>
+             agent.id !== this.myId && // Check if it's NOT me
+             Math.floor(agent.x) === x && // Check integer coordinates
+             Math.floor(agent.y) === y
+        );
+
+        return !isBlockedByOtherAgent;
+    }
+    
     // Method to get all walkable tiles (useful for exploration target selection)
     getAllWalkableTiles() {
         return [...this.spawnTiles, ...this.deliveryTiles, ...this.normalTiles];

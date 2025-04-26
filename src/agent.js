@@ -127,7 +127,7 @@ class Agent {
                      break;
              }
              // Add a small delay to prevent overwhelming the server
-            await this.delay(100);
+            await this.delay(10);
          } catch (err) {
              console.error(`Strategy action "${action.action}" failed:`, err);
               if (action.action.startsWith('move')) {
