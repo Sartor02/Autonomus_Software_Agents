@@ -13,21 +13,3 @@ e bloccarsi se c'è un agente che gli blocca la strada
 (Probabilmente non valida, ha senso solo in mappe che hanno
 area di spawn in tutta la mappa e non in quelle dove l'area di spawn
 è solo in una zona limitata)
-
-- Non considerare le parcelle con reward molto bassa (?). Nel
-senso non cercare proprio di andare a prenderle o consegnare
-se il numero di passi da fare è maggiore della reward --------------- FATTO
-
-- Aggiugnere un ban anche per le tile bloccate dagli agenti.
-Si rifa al TODO 5 di questa lista. Può succedere che 
-voglia andare su una tile e rimanga fermo perchè vede che la strada
-è occupata da un altro agente ---------------------------------------- FATTO
-
-- Succede che, se ci sono molte parcelle e quella con il reward più alto 
-è distante, l'agente può entrare in un loop: cerca di raggiungere la 
-parcella più lontana, ma la perde di vista e ripiega su una parcella 
-più vicina con un reward inferiore. Avvicinandosi a quest'ultima, 
-torna a vedere quella col reward maggiore e tenta di nuovo di 
-raggiungerla, per poi perderla ancora di vista e ripiegare nuovamente 
-su quella più vicina. Questo ciclo si ripete fino a quando una delle 
-due parcelle scade.
