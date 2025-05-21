@@ -1,4 +1,6 @@
 // strategies/greedy.js
+import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, STUCK_TIMEOUT } from "../utils/utils.js";
+import { isAtPosition } from "../utils/utils.js";
 
 export class GreedyStrategy {
     constructor(beliefs, deliveryStrategy, pathfinder) {
@@ -12,22 +14,22 @@ export class GreedyStrategy {
         // Variables to manage being blocked by other agents on the next step
         this.blockedTargetTile = null; // The target tile of the step that was blocked
         this.blockedCounter = 0;       // How many consecutive turns we have been blocked trying to reach blockedTargetTile
-        this.BLOCKED_TIMEOUT = 2;      // Threshold: after BLOCKED_TIMEOUT turns blocked on the same target tile, recalculate path
+        this.BLOCKED_TIMEOUT = BLOCKED_TIMEOUT;      // Threshold: after BLOCKED_TIMEOUT turns blocked on the same target tile, recalculate path
 
         // Stuck detection based on agent position not changing
         this.stuckCounter = 0;
         this.lastPosition = null;
-        this.STUCK_TIMEOUT = 5; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
+        this.STUCK_TIMEOUT = STUCK_TIMEOUT; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
 
         // Ban list for parcels blocked by other agents OR where pathfinding failed
         this.bannedParcels = new Map(); // Map<parcelId: string, banUntilTurn: number>
         this.bannedExplorationTiles = new Map(); // Map<"x,y": string, banUntilTurn: number>
 
         this.currentTurn = 0; // Track turns to manage bans (simulated turn counter)
-        this.BAN_DURATION = 10; // How many turns to ban a blocked/unreachable parcel
+        this.BAN_DURATION = BAN_DURATION; // How many turns to ban a blocked/unreachable parcel
 
-        this.MIN_GENERAL_REWARD = 10; // Minimum reward for a parcel to be considered generally
-        this.NEARBY_DISTANCE_THRESHOLD = 2; // Distance threshold for picking up low-reward parcels
+        this.MIN_GENERAL_REWARD = MIN_GENERAL_REWARD; // Minimum reward for a parcel to be considered generally
+        this.NEARBY_DISTANCE_THRESHOLD = NEARBY_DISTANCE_THRESHOLD; // Distance threshold for picking up low-reward parcels
     }
 
     // Helper method to check if a tile is currently blocked by another agent
@@ -139,7 +141,7 @@ export class GreedyStrategy {
         }
 
         // Detect if stuck (position hasn't changed)
-        if (this.lastPosition && this.isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
+        if (this.lastPosition && isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
             this.stuckCounter++;
             if (this.stuckCounter > this.STUCK_TIMEOUT) {
                 console.warn(`Agent's position hasn't changed for ${this.STUCK_TIMEOUT} turns. Clearing path and trying exploration.`);
@@ -191,7 +193,7 @@ export class GreedyStrategy {
             // If we have a valid, non-blocked, suitable best parcel target
 
             // Check if we are at the parcel's exact location
-            if (this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
+            if (isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
                 // Reset exploration blocking state if we reached the target
                 this.blockedTargetTile = null;
                 this.blockedCounter = 0;
@@ -210,7 +212,7 @@ export class GreedyStrategy {
                 console.log(`Calculated path to parcel: ${this.explorationPath.length} steps.`);
 
                 // Handle case where pathfinding returns 0 steps but we are not at the target
-                if (this.explorationPath.length === 0 && !this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
+                if (this.explorationPath.length === 0 && !isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
                     console.warn(`Pathfinder returned 0 steps to parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning parcel until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
                     // Add the parcel ID to the ban list with an expiry turn because pathfinding failed
                     this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
@@ -246,7 +248,7 @@ export class GreedyStrategy {
                 console.log(`Calculated exploration path: ${this.explorationPath.length} steps.`);
 
                 // *** New: Handle case where pathfinding returns 0 steps to exploration target ***
-                if (this.explorationPath.length === 0 && !this.isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
+                if (this.explorationPath.length === 0 && !isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
                     const tileKey = `${explorationTarget.x},${explorationTarget.y}`;
                     console.warn(`Pathfinder returned 0 steps to exploration target ${tileKey} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning tile until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
                     // Add the tile coordinates to the banned exploration tiles list
@@ -426,12 +428,7 @@ export class GreedyStrategy {
 
     // Simple fallback move finding
     findSimpleValidMove(currentX, currentY) {
-        const directions = [
-            { dx: 0, dy: 1, action: 'move_up' },
-            { dx: 0, dy: -1, action: 'move_down' },
-            { dx: 1, dy: 0, action: 'move_right' },
-            { dx: -1, dy: 0, action: 'move_left' },
-        ];
+        const directions = DIRECTIONS;
         for (const dir of directions) {
             const nextX = currentX + dir.dx;
             const nextY = currentY + dir.dy;
@@ -441,9 +438,5 @@ export class GreedyStrategy {
             }
         }
         return null; // No valid move
-    }
-
-    isAtPosition(x1, y1, x2, y2) {
-        return x1 === x2 && y1 === y2;
     }
 }

@@ -1,16 +1,18 @@
+import { BLOCKED_TIMEOUT, DELIVERY_THRESHOLD, MAX_DETOUR_DISTANCE } from "../utils/utils.js";
+
 export class DeliveryStrategy {
     constructor(beliefs, pathfinder) {
         this.beliefs = beliefs;
         this.pathfinder = pathfinder;
         this.carriedParcels = [];
-        this.deliveryThreshold = 12; // Minimum reward to consider a parcel for detour
-        this.maxDetourDistance = 5; // Increased max detour distance slightly
+        this.deliveryThreshold = DELIVERY_THRESHOLD; // Minimum reward to consider a parcel for detour
+        this.maxDetourDistance = MAX_DETOUR_DISTANCE; // Increased max detour distance slightly
         this.deliveryPath = [];
 
         // Variables to manage being blocked by other agents during delivery
         this.blockedTargetTile = null;
         this.blockedCounter = 0;
-        this.BLOCKED_TIMEOUT = 2; // Threshold for blocked target tile (in turns)
+        this.BLOCKED_TIMEOUT = BLOCKED_TIMEOUT; // Threshold for blocked target tile (in turns)
     }
 
     shouldDeliver() {

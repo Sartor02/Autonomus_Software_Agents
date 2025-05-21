@@ -1,3 +1,5 @@
+import { DIRECTIONS } from "../utils/utils.js";
+
 export class Pathfinder {
     constructor(beliefs) {
         this.beliefs = beliefs;
@@ -60,12 +62,7 @@ export class Pathfinder {
         openSet.add(startNode.getKey());
         openSetNodes.set(startNode.getKey(), startNode);
 
-        const directions = [
-            { dx: 0, dy: 1, action: 'move_up' },
-            { dx: 0, dy: -1, action: 'move_down' },
-            { dx: 1, dy: 0, action: 'move_right' },
-            { dx: -1, dy: 0, action: 'move_left' },
-        ];
+        const directions = DIRECTIONS;
 
         while (openSet.size > 0) {
             // Find the node with the lowest f-score in the open set
@@ -79,6 +76,7 @@ export class Pathfinder {
                 }
             }
 
+            if (!currentNode) return; // No valid node found, exit
             // Remove current node from open set and add to closed set
             openSet.delete(currentNode.getKey());
             closedSet.add(currentNode.getKey());
@@ -145,12 +143,7 @@ export class Pathfinder {
         const visited = new Set();
         visited.add(`${start.x},${start.y}`);
 
-        const directions = [
-            { dx: 0, dy: 1 },
-            { dx: 0, dy: -1 },
-            { dx: 1, dy: 0 },
-            { dx: -1, dy: 0 },
-        ];
+        const directions = DIRECTIONS;
 
         while (queue.length > 0) {
             const current = queue.shift();
