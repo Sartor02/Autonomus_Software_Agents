@@ -12,47 +12,47 @@ export class Beliefs {
         this.emptyTiles = [];
         this.myId = null;
 
-        this.mapWidth = 0; 
+        this.mapWidth = 0;
         this.mapHeight = 0;
     }
 
     updateFromSensing(data) {
-      // Update parcel state
-      if (data.parcels) {
-          this.parcels = data.parcels.map(p => ({
-              id: p.id,
-              x: p.x,
-              y: p.y,
-              reward: p.reward,
-              originalReward: p.originalReward,
-              carriedBy: p.carriedBy,
-              // Calculate distance only if my position is known
-              distance: this.myPosition ? this.calculateDistance(p.x, p.y) : Infinity
-          }));
-      }
+        // Update parcel state
+        if (data.parcels) {
+            this.parcels = data.parcels.map(p => ({
+                id: p.id,
+                x: p.x,
+                y: p.y,
+                reward: p.reward,
+                originalReward: p.originalReward,
+                carriedBy: p.carriedBy,
+                // Calculate distance only if my position is known
+                distance: this.myPosition ? this.calculateDistance(p.x, p.y) : Infinity
+            }));
+        }
 
-      // Update other agents
-      if (data.agents) {
-         this.agents = data.agents;
-         // Update my position and id from agent data as well
-         const me = this.agents.find(agent => agent.id === this.myId);
-         if (me) {
-             this.myPosition = { x: me.x, y: me.y };
-             this.myScore = me.score;
-         } else if (data.you) { // Fallback if onYou comes later or myId isn't set yet
-             this.myId = data.you.id;
-             this.myPosition = { x: data.you.x, y: data.you.y };
-             this.myScore = data.you.score;
-         }
-      } else if (data.you) { // Handle initial onYou event
+        // Update other agents
+        if (data.agents) {
+            this.agents = data.agents;
+            // Update my position and id from agent data as well
+            const me = this.agents.find(agent => agent.id === this.myId);
+            if (me) {
+                this.myPosition = { x: me.x, y: me.y };
+                this.myScore = me.score;
+            } else if (data.you) { // Fallback if onYou comes later or myId isn't set yet
+                this.myId = data.you.id;
+                this.myPosition = { x: data.you.x, y: data.you.y };
+                this.myScore = data.you.score;
+            }
+        } else if (data.you) { // Handle initial onYou event
             this.myId = data.you.id;
             this.myPosition = { x: data.you.x, y: data.you.y };
             this.myScore = data.you.score;
-      }
+        }
 
 
-      // Calculate available parcels (not carried by others)
-      this.availableParcels = this.parcels.filter(p => !p.carriedBy);
+        // Calculate available parcels (not carried by others)
+        this.availableParcels = this.parcels.filter(p => !p.carriedBy);
     }
 
     // 0 = empty tile, 1 = spawn tile, 2 = delivery tile, 3 = normal tile
@@ -71,21 +71,21 @@ export class Beliefs {
                 const tileIndex = x * height + y; // Common grid to 1D mapping
                 if (tileIndex >= 0 && tileIndex < tiles.length) {
                     const tile = tiles[tileIndex];
-                    if(tile.type === 0) {
-                        this.emptyTiles.push({x, y});
+                    if (tile.type === 0) {
+                        this.emptyTiles.push({ x, y });
                     } else if (tile.type === 1) {
-                        this.spawnTiles.push({x, y});
+                        this.spawnTiles.push({ x, y });
                     } else if (tile.type === 2) {
-                        this.deliveryTiles.push({x, y});
+                        this.deliveryTiles.push({ x, y });
                     } else if (tile.type === 3) {
-                        this.normalTiles.push({x, y});
+                        this.normalTiles.push({ x, y });
                     }
                 } else {
-                     console.warn(`Map tile index out of bounds: ${tileIndex} for map ${width}x${height}`);
+                    console.warn(`Map tile index out of bounds: ${tileIndex} for map ${width}x${height}`);
                 }
             }
         }
-         console.log(`Map info updated: ${this.emptyTiles.length} empty, ${this.spawnTiles.length} spawn, ${this.deliveryTiles.length} delivery, ${this.normalTiles.length} normal tiles.`);
+        console.log(`Map info updated: ${this.emptyTiles.length} empty, ${this.spawnTiles.length} spawn, ${this.deliveryTiles.length} delivery, ${this.normalTiles.length} normal tiles.`);
     }
 
     isDeliveryTile(x, y) {
@@ -129,14 +129,14 @@ export class Beliefs {
         // Also check if another agent is currently on this tile
         // We only care about *other* agents blocking the path
         const isBlockedByOtherAgent = this.agents.some(agent =>
-             agent.id !== this.myId && // Check if it's NOT me
-             Math.floor(agent.x) === x && // Check integer coordinates
-             Math.floor(agent.y) === y
+            agent.id !== this.myId && // Check if it's NOT me
+            Math.floor(agent.x) === x && // Check integer coordinates
+            Math.floor(agent.y) === y
         );
 
         return !isBlockedByOtherAgent;
     }
-    
+
     // Method to get all walkable tiles (useful for exploration target selection)
     getAllWalkableTiles() {
         return [...this.spawnTiles, ...this.deliveryTiles, ...this.normalTiles];

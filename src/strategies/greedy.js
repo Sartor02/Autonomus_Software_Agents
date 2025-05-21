@@ -19,15 +19,13 @@ export class GreedyStrategy {
         this.lastPosition = null;
         this.STUCK_TIMEOUT = 5; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
 
-       // Ban list for parcels blocked by other agents OR where pathfinding failed
-       this.bannedParcels = new Map(); // Map<parcelId: string, banUntilTurn: number>
-       // New: Ban list for exploration tile coordinates that were unreachable
-       this.bannedExplorationTiles = new Map(); // Map<"x,y": string, banUntilTurn: number>
+        // Ban list for parcels blocked by other agents OR where pathfinding failed
+        this.bannedParcels = new Map(); // Map<parcelId: string, banUntilTurn: number>
+        this.bannedExplorationTiles = new Map(); // Map<"x,y": string, banUntilTurn: number>
 
         this.currentTurn = 0; // Track turns to manage bans (simulated turn counter)
         this.BAN_DURATION = 10; // How many turns to ban a blocked/unreachable parcel
 
-        // New: Constants for specific reward filtering rules
         this.MIN_GENERAL_REWARD = 10; // Minimum reward for a parcel to be considered generally
         this.NEARBY_DISTANCE_THRESHOLD = 2; // Distance threshold for picking up low-reward parcels
     }
@@ -50,19 +48,19 @@ export class GreedyStrategy {
         const bannedParcelIdsToRemove = [];
 
         for (const [parcelId, banUntilTurn] of this.bannedParcels.entries()) {
-             // Check if the ban has expired
-             if (now >= banUntilTurn) {
-                 // console.log(`Ban for parcel ${parcelId} expired.`);
-                 bannedParcelIdsToRemove.push(parcelId);
-             } else {
-                 // Check if the parcel still exists in beliefs (it might have been taken by someone else or despawned)
-                 // Using beliefs.parcels is more robust than availableParcels as it includes carried ones
-                 const parcelExists = this.beliefs.parcels.some(p => p.id === parcelId);
-                 if (!parcelExists) {
-                     // console.log(`Banned parcel ${parcelId} no longer exists in beliefs.`);
-                     bannedParcelIdsToRemove.push(parcelId);
-                 }
-             }
+            // Check if the ban has expired
+            if (now >= banUntilTurn) {
+                // console.log(`Ban for parcel ${parcelId} expired.`);
+                bannedParcelIdsToRemove.push(parcelId);
+            } else {
+                // Check if the parcel still exists in beliefs (it might have been taken by someone else or despawned)
+                // Using beliefs.parcels is more robust than availableParcels as it includes carried ones
+                const parcelExists = this.beliefs.parcels.some(p => p.id === parcelId);
+                if (!parcelExists) {
+                    // console.log(`Banned parcel ${parcelId} no longer exists in beliefs.`);
+                    bannedParcelIdsToRemove.push(parcelId);
+                }
+            }
         }
         // Remove the identified bans
         bannedParcelIdsToRemove.forEach(id => this.bannedParcels.delete(id));
@@ -74,21 +72,21 @@ export class GreedyStrategy {
 
         if (!availableAndNotBanned.length) return null;
 
-         // Filter out low-reward parcels unless they are very close (using the logic from the last step)
-         const currentPos = this.beliefs.myPosition;
-          if (!currentPos) return null; // Should be checked at the start of getAction
+        // Filter out low-reward parcels unless they are very close (using the logic from the last step)
+        const currentPos = this.beliefs.myPosition;
+        if (!currentPos) return null; // Should be checked at the start of getAction
 
-         let filteredByReward = availableAndNotBanned.filter(p => {
-              const distanceToParcel = this.beliefs.calculateDistance(p.x, p.y);
-              // Keep the parcel if its reward is >= MIN_GENERAL_REWARD
-              // OR if it's within NEARBY_DISTANCE_THRESHOLD from the agent's current position
-              return p.reward >= this.MIN_GENERAL_REWARD || distanceToParcel <= this.NEARBY_DISTANCE_THRESHOLD;
-         });
+        let filteredByReward = availableAndNotBanned.filter(p => {
+            const distanceToParcel = this.beliefs.calculateDistance(p.x, p.y);
+            // Keep the parcel if its reward is >= MIN_GENERAL_REWARD
+            // OR if it's within NEARBY_DISTANCE_THRESHOLD from the agent's current position
+            return p.reward >= this.MIN_GENERAL_REWARD || distanceToParcel <= this.NEARBY_DISTANCE_THRESHOLD;
+        });
 
-          if (!filteredByReward.length) {
-              // console.log("All available parcels filtered out by low reward or distance.");
-              return null; // No suitable parcels after filtering
-          }
+        if (!filteredByReward.length) {
+            // console.log("All available parcels filtered out by low reward or distance.");
+            return null; // No suitable parcels after filtering
+        }
 
 
         // Sort the remaining suitable parcels by efficiency (reward / distance to parcel)
@@ -122,51 +120,51 @@ export class GreedyStrategy {
         this.currentTurn++;
 
         // *** Clean up expired bans from the ban list (Exploration Tiles) ***
-         const now = this.currentTurn;
-         const bannedTileKeysToRemove = [];
-         for (const [tileKey, banUntilTurn] of this.bannedExplorationTiles.entries()) {
-              if (now >= banUntilTurn) {
-                  // console.log(`Ban for exploration tile ${tileKey} expired.`);
-                  bannedTileKeysToRemove.push(tileKey);
-              }
-         }
-         bannedTileKeysToRemove.forEach(key => this.bannedExplorationTiles.delete(key));
+        const now = this.currentTurn;
+        const bannedTileKeysToRemove = [];
+        for (const [tileKey, banUntilTurn] of this.bannedExplorationTiles.entries()) {
+            if (now >= banUntilTurn) {
+                // console.log(`Ban for exploration tile ${tileKey} expired.`);
+                bannedTileKeysToRemove.push(tileKey);
+            }
+        }
+        bannedTileKeysToRemove.forEach(key => this.bannedExplorationTiles.delete(key));
         // *** End cleanup Exploration Tiles ***
 
 
         const currentPos = this.beliefs.myPosition;
         if (!currentPos) {
-             // console.log("Agent position unknown, waiting...");
-             return null; // Cannot act if position is unknown
+            // console.log("Agent position unknown, waiting...");
+            return null; // Cannot act if position is unknown
         }
 
         // Detect if stuck (position hasn't changed)
-         if (this.lastPosition && this.isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
+        if (this.lastPosition && this.isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
             this.stuckCounter++;
             if (this.stuckCounter > this.STUCK_TIMEOUT) {
-                 console.warn(`Agent's position hasn't changed for ${this.STUCK_TIMEOUT} turns. Clearing path and trying exploration.`);
-                 this.explorationPath = []; // Clear path to force re-decision
-                 // Also reset agent blocking state, as this might be the cause
-                 this.blockedTargetTile = null;
-                 this.blockedCounter = 0;
-                 this.stuckCounter = 0; // Reset self-stuck counter
-                 // Note: No need to clear banned lists here, they have their own expiry/cleanup
+                console.warn(`Agent's position hasn't changed for ${this.STUCK_TIMEOUT} turns. Clearing path and trying exploration.`);
+                this.explorationPath = []; // Clear path to force re-decision
+                // Also reset agent blocking state, as this might be the cause
+                this.blockedTargetTile = null;
+                this.blockedCounter = 0;
+                this.stuckCounter = 0; // Reset self-stuck counter
+                // Note: No need to clear banned lists here, they have their own expiry/cleanup
             }
-         } else {
-             this.stuckCounter = 0; // Reset if position changed
-         }
-         this.lastPosition = { ...currentPos }; // Update last position
+        } else {
+            this.stuckCounter = 0; // Reset if position changed
+        }
+        this.lastPosition = { ...currentPos }; // Update last position
 
 
         // 1. Delivery priority
         // The DeliveryStrategy will now use the Pathfinder internally
         const deliveryAction = this.deliveryStrategy.getDeliveryAction();
         if (deliveryAction) {
-             // If DeliveryStrategy provided an action (move, pickup, putdown)
-             // Reset exploration blocking state if we are doing something else
-             this.blockedTargetTile = null;
-             this.blockedCounter = 0;
-             return deliveryAction;
+            // If DeliveryStrategy provided an action (move, pickup, putdown)
+            // Reset exploration blocking state if we are doing something else
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
+            return deliveryAction;
         }
 
         // 2. Parcel collection
@@ -177,15 +175,15 @@ export class GreedyStrategy {
         // Note: If bestParcel is null here, it means either no suitable parcels available (after reward/distance filter),
         // or the most efficient one(s) were filtered out by the ban list.
         if (bestParcel && this.isBlockedByOtherAgent(bestParcel.x, bestParcel.y)) {
-             console.log(`Best parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} is blocked by another agent. Banning this parcel until turn ${this.currentTurn + this.BAN_DURATION}.`);
-             // Add the parcel ID to the ban list with an expiry turn
-             this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
-             bestParcel = null; // Treat as if no suitable parcel was found, fall through to exploration
-             // Reset exploration blocking state if we are ignoring the target
-             this.blockedTargetTile = null;
-             this.blockedCounter = 0;
-             // Return null here to re-evaluate in the next turn, maybe another suitable parcel becomes best.
-             return null;
+            console.log(`Best parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} is blocked by another agent. Banning this parcel until turn ${this.currentTurn + this.BAN_DURATION}.`);
+            // Add the parcel ID to the ban list with an expiry turn
+            this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
+            bestParcel = null; // Treat as if no suitable parcel was found, fall through to exploration
+            // Reset exploration blocking state if we are ignoring the target
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
+            // Return null here to re-evaluate in the next turn, maybe another suitable parcel becomes best.
+            return null;
         }
 
 
@@ -194,36 +192,36 @@ export class GreedyStrategy {
 
             // Check if we are at the parcel's exact location
             if (this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
-                 // Reset exploration blocking state if we reached the target
-                 this.blockedTargetTile = null;
-                 this.blockedCounter = 0;
-                 return { action: 'pickup', target: bestParcel.id };
+                // Reset exploration blocking state if we reached the target
+                this.blockedTargetTile = null;
+                this.blockedCounter = 0;
+                return { action: 'pickup', target: bestParcel.id };
             }
 
             // If not at the parcel, calculate path to it and move
             // Recalculate path only if not already following one towards this parcel
             if (this.explorationPath.length === 0 || !this.isPathLeadingTo(this.explorationPath, bestParcel.x, bestParcel.y)) {
-                 console.log(`Targeting parcel at ${bestParcel.x}, ${bestParcel.y}. Calculating path.`);
-                 // Reset exploration blocking state before calculating a new path
-                 this.blockedTargetTile = null;
-                 this.blockedCounter = 0;
+                console.log(`Targeting parcel at ${bestParcel.x}, ${bestParcel.y}. Calculating path.`);
+                // Reset exploration blocking state before calculating a new path
+                this.blockedTargetTile = null;
+                this.blockedCounter = 0;
 
-                 this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, bestParcel.x, bestParcel.y);
-                 console.log(`Calculated path to parcel: ${this.explorationPath.length} steps.`);
+                this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, bestParcel.x, bestParcel.y);
+                console.log(`Calculated path to parcel: ${this.explorationPath.length} steps.`);
 
-                 // Handle case where pathfinding returns 0 steps but we are not at the target
-                 if (this.explorationPath.length === 0 && !this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
-                     console.warn(`Pathfinder returned 0 steps to parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning parcel until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
-                      // Add the parcel ID to the ban list with an expiry turn because pathfinding failed
-                      this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
-                      // Clear the failed path. getAction() won't return a move this turn.
-                      // The next act cycle might find a new parcel (if not banned) or go to exploration.
-                      // blockedTargetTile and blockedCounter were already reset above.
-                     return null; // Do not attempt to follow an empty path
-                 }
+                // Handle case where pathfinding returns 0 steps but we are not at the target
+                if (this.explorationPath.length === 0 && !this.isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
+                    console.warn(`Pathfinder returned 0 steps to parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning parcel until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
+                    // Add the parcel ID to the ban list with an expiry turn because pathfinding failed
+                    this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
+                    // Clear the failed path. getAction() won't return a move this turn.
+                    // The next act cycle might find a new parcel (if not banned) or go to exploration.
+                    // blockedTargetTile and blockedCounter were already reset above.
+                    return null; // Do not attempt to follow an empty path
+                }
             }
-             // Follow the calculated path (or the one already being followed towards the parcel)
-             return this.followExplorationPath(currentPos.x, currentPos.y);
+            // Follow the calculated path (or the one already being followed towards the parcel)
+            return this.followExplorationPath(currentPos.x, currentPos.y);
 
         }
 
@@ -231,10 +229,10 @@ export class GreedyStrategy {
         // If no suitable parcel target, start exploration
         // If no path is being followed for exploration, find a new exploration target
         if (this.explorationPath.length === 0) {
-             console.log("No suitable parcel target, starting exploration...");
-             // Reset exploration blocking state before finding a new target
-             this.blockedTargetTile = null;
-             this.blockedCounter = 0;
+            console.log("No suitable parcel target, starting exploration...");
+            // Reset exploration blocking state before finding a new target
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
 
             // Find a walkable exploration target tile (using the original least-visited logic)
             // This method will now also filter out banned exploration tiles
@@ -251,8 +249,8 @@ export class GreedyStrategy {
                 if (this.explorationPath.length === 0 && !this.isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
                     const tileKey = `${explorationTarget.x},${explorationTarget.y}`;
                     console.warn(`Pathfinder returned 0 steps to exploration target ${tileKey} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning tile until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
-                     // Add the tile coordinates to the banned exploration tiles list
-                     this.bannedExplorationTiles.set(tileKey, this.currentTurn + this.BAN_DURATION);
+                    // Add the tile coordinates to the banned exploration tiles list
+                    this.bannedExplorationTiles.set(tileKey, this.currentTurn + this.BAN_DURATION);
                     // Clear the failed path. The next call to getAction will find a *new*, non-banned exploration target.
                     this.explorationPath = [];
                     // blockedTargetTile and blockedCounter were already reset above.
@@ -261,24 +259,24 @@ export class GreedyStrategy {
                 // *** End New Handling ***
 
             } else {
-                 console.warn("Could not find an exploration target tile (all might be banned or unreachable).");
-                 // Fallback if no valid/reachable exploration target is found
-                  const simpleMove = this.findSimpleValidMove(currentPos.x, currentPos.y);
-                  if (simpleMove) {
-                      console.log("Falling back to simple valid move.");
-                      return simpleMove;
-                  }
-                  console.error("No exploration target, no simple valid move. Agent is likely completely stuck.");
-                   // Reset exploration blocking state if no action is possible
-                  this.blockedTargetTile = null;
-                  this.blockedCounter = 0;
-                  return null; // No action possible
+                console.warn("Could not find an exploration target tile (all might be banned or unreachable).");
+                // Fallback if no valid/reachable exploration target is found
+                const simpleMove = this.findSimpleValidMove(currentPos.x, currentPos.y);
+                if (simpleMove) {
+                    console.log("Falling back to simple valid move.");
+                    return simpleMove;
+                }
+                console.error("No exploration target, no simple valid move. Agent is likely completely stuck.");
+                // Reset exploration blocking state if no action is possible
+                this.blockedTargetTile = null;
+                this.blockedCounter = 0;
+                return null; // No action possible
             }
         }
 
         // If we reached here, it means explorationPath.length > 0 (or was just set).
         // Follow the calculated path.
-         return this.followExplorationPath(currentPos.x, currentPos.y);
+        return this.followExplorationPath(currentPos.x, currentPos.y);
     }
 
     // findExplorationTargetTile based on the base code (least visited walkable tile everywhere)
@@ -292,17 +290,17 @@ export class GreedyStrategy {
 
         // Filter out tiles that are currently banned from exploration targets
         const availableExplorationTiles = walkableTiles.filter(tile => {
-             const tileKey = `${tile.x},${tile.y}`;
-             // Check if the tile key exists in the banned list and the ban is still active
-             return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
-             // Note: Cleanup happens at the start of getAction, so this check is technically redundant for expiry,
-             // but explicitly shows we ignore banned tiles.
+            const tileKey = `${tile.x},${tile.y}`;
+            // Check if the tile key exists in the banned list and the ban is still active
+            return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
+            // Note: Cleanup happens at the start of getAction, so this check is technically redundant for expiry,
+            // but explicitly shows we ignore banned tiles.
         });
 
-         if (availableExplorationTiles.length === 0) {
-              console.warn("All known walkable tiles are currently banned exploration targets.");
-              return null; // No exploration target available
-         }
+        if (availableExplorationTiles.length === 0) {
+            console.warn("All known walkable tiles are currently banned exploration targets.");
+            return null; // No exploration target available
+        }
 
 
         let minVisits = Infinity;
@@ -311,9 +309,9 @@ export class GreedyStrategy {
 
         // Sort available exploration tiles by distance to prioritize closer ones with same visit count
         const sortedAvailableTiles = availableExplorationTiles.sort((a, b) => {
-             const distA = this.pathfinder.heuristic(currentX, currentY, a.x, a.y);
-             const distB = this.pathfinder.heuristic(currentX, currentY, b.x, b.y);
-             return distA - distB;
+            const distA = this.pathfinder.heuristic(currentX, currentY, a.x, a.y);
+            const distB = this.pathfinder.heuristic(currentX, currentY, b.x, b.y);
+            return distA - distB;
         });
 
         for (const tile of sortedAvailableTiles) {
@@ -327,8 +325,8 @@ export class GreedyStrategy {
                 bestTile = tile;
                 minDistance = distance;
             } else if (visits === minVisits && distance < minDistance) {
-                 bestTile = tile;
-                 minDistance = distance;
+                bestTile = tile;
+                minDistance = distance;
             }
         }
 
@@ -336,15 +334,15 @@ export class GreedyStrategy {
         // The pathfinder already checks this, but doing it here prevents giving an invalid target to the pathfinder in the first place.
         // Note: isWalkable considers dynamic obstacles (other agents). This might make a tile unwalkable *right now*.
         if (bestTile && !this.beliefs.isWalkable(bestTile.x, bestTile.y)) {
-             console.warn(`findExplorationTargetTile selected potentially unwalkable tile ${bestTile.x},${bestTile.y}. Looking for nearest walkable tile instead.`);
-             const nearestValid = this.pathfinder.findNearestValidTile(bestTile.x, bestTile.y);
-             if (nearestValid) {
-                  console.log(`Using nearest valid tile ${nearestValid.x},${nearestValid.y} as exploration target.`);
-                  return nearestValid;
-             } else {
-                  console.error(`Could not find nearest valid tile for selected exploration target ${bestTile.x},${bestTile.y}. No valid exploration target found.`);
-                  return null;
-             }
+            console.warn(`findExplorationTargetTile selected potentially unwalkable tile ${bestTile.x},${bestTile.y}. Looking for nearest walkable tile instead.`);
+            const nearestValid = this.pathfinder.findNearestValidTile(bestTile.x, bestTile.y);
+            if (nearestValid) {
+                console.log(`Using nearest valid tile ${nearestValid.x},${nearestValid.y} as exploration target.`);
+                return nearestValid;
+            } else {
+                console.error(`Could not find nearest valid tile for selected exploration target ${bestTile.x},${bestTile.y}. No valid exploration target found.`);
+                return null;
+            }
         }
 
         return bestTile; // Return the least visited walkable tile (or closest among least visited)
@@ -390,9 +388,9 @@ export class GreedyStrategy {
             // If blocked but timeout not reached, wait (return null)
             return null;
         } else {
-             // If not blocked, reset block state
-             this.blockedTargetTile = null;
-             this.blockedCounter = 0;
+            // If not blocked, reset block state
+            this.blockedTargetTile = null;
+            this.blockedCounter = 0;
         }
 
 
@@ -428,7 +426,7 @@ export class GreedyStrategy {
 
     // Simple fallback move finding
     findSimpleValidMove(currentX, currentY) {
-         const directions = [
+        const directions = [
             { dx: 0, dy: 1, action: 'move_up' },
             { dx: 0, dy: -1, action: 'move_down' },
             { dx: 1, dy: 0, action: 'move_right' },

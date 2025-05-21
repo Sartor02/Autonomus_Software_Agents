@@ -14,22 +14,22 @@ export class Pathfinder {
         const target = { x: targetX, y: targetY };
 
         if (!this.beliefs.isWalkable(target.x, target.y)) {
-             console.warn(`Target tile ${target.x},${target.y} is not walkable.`);
-             // Try to find the nearest walkable tile to the target if the target itself is not walkable
-             const nearestValid = this.findNearestValidTile(target.x, target.y);
-             if (nearestValid) {
-                 console.warn(`Retrying pathfinding to nearest valid tile ${nearestValid.x},${nearestValid.y}`);
-                 target.x = nearestValid.x;
-                 target.y = nearestValid.y;
-             } else {
-                 console.error(`Could not find a path to target ${target.x},${target.y} as it's not walkable and no nearby valid tile found.`);
-                 return []; // No path possible
-             }
+            console.warn(`Target tile ${target.x},${target.y} is not walkable.`);
+            // Try to find the nearest walkable tile to the target if the target itself is not walkable
+            const nearestValid = this.findNearestValidTile(target.x, target.y);
+            if (nearestValid) {
+                console.warn(`Retrying pathfinding to nearest valid tile ${nearestValid.x},${nearestValid.y}`);
+                target.x = nearestValid.x;
+                target.y = nearestValid.y;
+            } else {
+                console.error(`Could not find a path to target ${target.x},${target.y} as it's not walkable and no nearby valid tile found.`);
+                return []; // No path possible
+            }
         }
-         if (!this.beliefs.isWalkable(start.x, start.y)) {
-             console.error(`Start tile ${start.x},${start.y} is not walkable.`);
-             return []; // Cannot start from an unwalkable tile
-         }
+        if (!this.beliefs.isWalkable(start.x, start.y)) {
+            console.error(`Start tile ${start.x},${start.y} is not walkable.`);
+            return []; // Cannot start from an unwalkable tile
+        }
 
 
         // Node structure for A*
@@ -61,7 +61,7 @@ export class Pathfinder {
         openSetNodes.set(startNode.getKey(), startNode);
 
         const directions = [
-            { dx: 0, dy: 1, action: 'move_up' },   
+            { dx: 0, dy: 1, action: 'move_up' },
             { dx: 0, dy: -1, action: 'move_down' },
             { dx: 1, dy: 0, action: 'move_right' },
             { dx: -1, dy: 0, action: 'move_left' },
@@ -133,8 +133,8 @@ export class Pathfinder {
         return []; // No path found
     }
 
-     // Breadth-First Search to find the nearest valid tile
-     findNearestValidTile(startX, startY) {
+    // Breadth-First Search to find the nearest valid tile
+    findNearestValidTile(startX, startY) {
         const start = { x: startX, y: startY };
 
         if (this.beliefs.isWalkable(start.x, start.y)) {
@@ -145,7 +145,7 @@ export class Pathfinder {
         const visited = new Set();
         visited.add(`${start.x},${start.y}`);
 
-         const directions = [
+        const directions = [
             { dx: 0, dy: 1 },
             { dx: 0, dy: -1 },
             { dx: 1, dy: 0 },
@@ -201,7 +201,7 @@ export class Pathfinder {
 
         if (dx === 1) return 'move_right';
         if (dx === -1) return 'move_left';
-        if (dy === 1) return 'move_up'; 
+        if (dy === 1) return 'move_up';
         if (dy === -1) return 'move_down';
 
         return null; // Should not happen if path is valid
