@@ -141,4 +141,12 @@ export class Beliefs {
     getAllWalkableTiles() {
         return [...this.spawnTiles, ...this.deliveryTiles, ...this.normalTiles];
     }
+
+    getSpawnTiles() {
+        return this.spawnTiles;
+    }
+
+    getNormalTiles() {
+        return this.normalTiles;
+    }
 }

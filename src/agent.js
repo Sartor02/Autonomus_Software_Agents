@@ -1,7 +1,7 @@
 // agent.js
 import { DeliverooApi } from "@unitn-asa/deliveroo-js-client";
 import { Beliefs } from "./beliefs/beliefs.js";
-import { GreedyStrategy } from "./strategies/greedy.js";
+import { Planner } from "./strategies/planner.js";
 import { DeliveryStrategy } from "./strategies/delivery.js";
 import { Pathfinder } from "./plans/pathfinder.js";
 import config from "../config.js";
@@ -12,7 +12,7 @@ class Agent {
         this.beliefs = new Beliefs();
         this.pathfinder = new Pathfinder(this.beliefs);
         this.deliveryStrategy = new DeliveryStrategy(this.beliefs, this.pathfinder);
-        this.strategy = new GreedyStrategy(this.beliefs, this.deliveryStrategy, this.pathfinder);
+        this.strategy = new Planner(this.beliefs, this.deliveryStrategy, this.pathfinder);
 
         this.isActing = false; // To avoid overlapping actions
 
@@ -59,6 +59,8 @@ class Agent {
 
         this.api.onMap((width, height, tiles) => {
             this.beliefs.updateMapInfo(width, height, tiles);
+            this.strategy.initializeMapKnowledge();
+            this.act(); // Act based on updated map info
         });
     }
 

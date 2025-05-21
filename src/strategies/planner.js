@@ -1,12 +1,14 @@
 // strategies/greedy.js
-import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, STUCK_TIMEOUT } from "../utils/utils.js";
+import { Desires } from "../desires/desires.js";
+import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT } from "../utils/utils.js";
 import { isAtPosition } from "../utils/utils.js";
 
-export class GreedyStrategy {
+export class Planner {
     constructor(beliefs, deliveryStrategy, pathfinder) {
         this.beliefs = beliefs;
         this.deliveryStrategy = deliveryStrategy;
         this.pathfinder = pathfinder;
+        this.desires = Desires;
 
         this.explorationMap = new Map(); // {x,y}: count of times visited
         this.explorationPath = []; // Path calculated by A*
@@ -30,6 +32,28 @@ export class GreedyStrategy {
 
         this.MIN_GENERAL_REWARD = MIN_GENERAL_REWARD; // Minimum reward for a parcel to be considered generally
         this.NEARBY_DISTANCE_THRESHOLD = NEARBY_DISTANCE_THRESHOLD; // Distance threshold for picking up low-reward parcels
+
+        this.activeExplorationDesire = null; // Track the active exploration desire
+    }
+
+    initializeMapKnowledge() {
+        const spawnTiles = this.beliefs.spawnTiles;
+        const normalTiles = this.beliefs.normalTiles;
+
+        if (spawnTiles.length === 0 && normalTiles.length === 0) {
+            console.warn("[Planner] Beliefs: Map knowledge is empty. Cannot determine exploration strategy.");
+        }
+
+        if (spawnTiles.length <= SPAWN_TILES_THRESHOLD) { // If there are few spawn tiles
+            this.activeExplorationDesire = this.desires.STRATEGY_CAMPER_SPAWN;
+            console.log(`[Planner] Detected map with few spawn tiles (${spawnTiles.length}). Active desire: ${this.activeExplorationDesire.description}`);
+        } else if (normalTiles.length > 0 && spawnTiles.length > normalTiles.length * SPAWN_TILES_HIGH_FACTOR) { // If spawn tiles are predominant
+            this.activeExplorationDesire = this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION;
+            console.log(`[Planner] Detected map with many spawn tiles (${spawnTiles.length}) compared to normal tiles (${normalTiles.length}). Active desire: ${this.activeExplorationDesire.description}`);
+        } else { // In all other cases, including maps without normal tiles or with a normal balance
+            this.activeExplorationDesire = this.desires.STRATEGY_GENERAL_EXPLORATION;
+            console.log(`[Planner] Normal map or no specific pattern. Active desire: ${this.activeExplorationDesire.description}`);
+        }
     }
 
     // Helper method to check if a tile is currently blocked by another agent
@@ -74,9 +98,20 @@ export class GreedyStrategy {
 
         if (!availableAndNotBanned.length) return null;
 
-        // Filter out low-reward parcels unless they are very close (using the logic from the last step)
         const currentPos = this.beliefs.myPosition;
         if (!currentPos) return null; // Should be checked at the start of getAction
+
+        if (this.activeExplorationDesire === this.desires.STRATEGY_CAMPER_SPAWN) {
+            const spawnTiles = this.beliefs.spawnTiles;
+            availableAndNotBanned = availableAndNotBanned.filter(p =>
+                spawnTiles.some(st => st.x === p.x && st.y === p.y)
+            );
+            if (!availableAndNotBanned.length) {
+                console.log("[Planner] STRATEGY_CAMPER_SPAWN active: No parcels on spawn tiles. Trying to find any parcel now, will resume camper mode later.");
+                // Force exploration to find any parcel
+                return null;
+            }
+        }
 
         let filteredByReward = availableAndNotBanned.filter(p => {
             const distanceToParcel = this.beliefs.calculateDistance(p.x, p.y);
@@ -90,12 +125,10 @@ export class GreedyStrategy {
             return null; // No suitable parcels after filtering
         }
 
-
         // Sort the remaining suitable parcels by efficiency (reward / distance to parcel)
         return filteredByReward
             .map(p => ({
                 ...p,
-                // Using the efficiency formula based on distance to parcel from the base code
                 efficiency: this.calculateParcelEfficiency(p)
             }))
             .sort((a, b) => b.efficiency - a.efficiency)[0];
@@ -247,7 +280,7 @@ export class GreedyStrategy {
                 this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, explorationTarget.x, explorationTarget.y);
                 console.log(`Calculated exploration path: ${this.explorationPath.length} steps.`);
 
-                // *** New: Handle case where pathfinding returns 0 steps to exploration target ***
+                // Handle case where pathfinding returns 0 steps to exploration target
                 if (this.explorationPath.length === 0 && !isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
                     const tileKey = `${explorationTarget.x},${explorationTarget.y}`;
                     console.warn(`Pathfinder returned 0 steps to exploration target ${tileKey} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning tile until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
@@ -258,7 +291,7 @@ export class GreedyStrategy {
                     // blockedTargetTile and blockedCounter were already reset above.
                     return null; // Do not attempt to follow an empty path
                 }
-                // *** End New Handling ***
+
 
             } else {
                 console.warn("Could not find an exploration target tile (all might be banned or unreachable).");
@@ -284,33 +317,71 @@ export class GreedyStrategy {
     // findExplorationTargetTile based on the base code (least visited walkable tile everywhere)
     // Modified to filter out banned exploration tiles.
     findExplorationTargetTile(currentX, currentY) {
-        const walkableTiles = this.beliefs.getAllWalkableTiles();
-        if (walkableTiles.length === 0) {
-            console.warn("No walkable tiles known for exploration.");
+        let candidateTiles = [];
+
+        if (this.activeExplorationDesire === this.desires.STRATEGY_CAMPER_SPAWN ||
+            this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
+            // Se il desiderio è camperare o focalizzare l'esplorazione, usa le spawn tiles come candidati principali
+            candidateTiles = this.beliefs.getSpawnTiles();
+            console.log(`[Exploration] Desire: ${this.activeExplorationDesire.description}. Using spawn tiles for exploration.`);
+        } else {
+            // Se il desiderio è esplorazione generale
+            candidateTiles = this.beliefs.getAllWalkableTiles();
+            console.log(`[Exploration] Desire: ${this.activeExplorationDesire.description}. Exploring all walkable tiles.`);
+        }
+
+        if (candidateTiles.length === 0) {
+            console.warn("No candidate tiles for exploration based on active desire.");
+            // Fallback per STRATEGY_FOCUS_SPAWN_EXPLORATION se tutte le spawn sono bannate/inaccessibili
+            if (this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
+                console.log("[Exploration] All spawn tiles banned/inaccessible. Trying with normal tiles (fallback for focus spawn).");
+                const normalTilesNotBanned = this.beliefs.getNormalTiles().filter(tile => {
+                    const tileKey = `${tile.x},${tile.y}`;
+                    return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
+                });
+                if (normalTilesNotBanned.length > 0) {
+                    return this.findLeastVisitedTile(currentX, currentY, normalTilesNotBanned);
+                }
+            }
             return null;
         }
 
-        // Filter out tiles that are currently banned from exploration targets
-        const availableExplorationTiles = walkableTiles.filter(tile => {
+        // Filtra le tiles attualmente bannate
+        const availableExplorationTiles = candidateTiles.filter(tile => {
             const tileKey = `${tile.x},${tile.y}`;
-            // Check if the tile key exists in the banned list and the ban is still active
             return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
-            // Note: Cleanup happens at the start of getAction, so this check is technically redundant for expiry,
-            // but explicitly shows we ignore banned tiles.
         });
 
         if (availableExplorationTiles.length === 0) {
-            console.warn("All known walkable tiles are currently banned exploration targets.");
-            return null; // No exploration target available
+            console.warn("All available exploration tiles for the current desire are banned or inaccessible.");
+            // Gestione del fallback anche qui, se tutte le *candidate* sono bannate
+            if (this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
+                console.log("[Exploration] All spawn tiles available were banned. Trying with normal tiles (fallback for focus spawn).");
+                const normalTilesNotBanned = this.beliefs.getNormalTiles().filter(tile => {
+                    const tileKey = `${tile.x},${tile.y}`;
+                    return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
+                });
+                if (normalTilesNotBanned.length > 0) {
+                    return this.findLeastVisitedTile(currentX, currentY, normalTilesNotBanned);
+                }
+            }
+            return null;
         }
 
+        return this.findLeastVisitedTile(currentX, currentY, availableExplorationTiles);
+    }
+
+    findLeastVisitedTile(currentX, currentY, tiles) {
+        if (tiles.length === 0) {
+            return null;
+        }
 
         let minVisits = Infinity;
         let bestTile = null;
         let minDistance = Infinity;
 
         // Sort available exploration tiles by distance to prioritize closer ones with same visit count
-        const sortedAvailableTiles = availableExplorationTiles.sort((a, b) => {
+        const sortedAvailableTiles = tiles.sort((a, b) => {
             const distA = this.pathfinder.heuristic(currentX, currentY, a.x, a.y);
             const distB = this.pathfinder.heuristic(currentX, currentY, b.x, b.y);
             return distA - distB;
@@ -332,11 +403,8 @@ export class GreedyStrategy {
             }
         }
 
-        // Sanity check: the found target tile should be walkable according to current beliefs
-        // The pathfinder already checks this, but doing it here prevents giving an invalid target to the pathfinder in the first place.
-        // Note: isWalkable considers dynamic obstacles (other agents). This might make a tile unwalkable *right now*.
         if (bestTile && !this.beliefs.isWalkable(bestTile.x, bestTile.y)) {
-            console.warn(`findExplorationTargetTile selected potentially unwalkable tile ${bestTile.x},${bestTile.y}. Looking for nearest walkable tile instead.`);
+            console.warn(`findLeastVisitedTile selected potentially unwalkable tile ${bestTile.x},${bestTile.y}. Looking for nearest walkable tile instead.`);
             const nearestValid = this.pathfinder.findNearestValidTile(bestTile.x, bestTile.y);
             if (nearestValid) {
                 console.log(`Using nearest valid tile ${nearestValid.x},${nearestValid.y} as exploration target.`);
@@ -347,7 +415,7 @@ export class GreedyStrategy {
             }
         }
 
-        return bestTile; // Return the least visited walkable tile (or closest among least visited)
+        return bestTile;
     }
 
 

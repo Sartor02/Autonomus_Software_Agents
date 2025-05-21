@@ -6,6 +6,9 @@ export const MIN_GENERAL_REWARD = 10; // Minimum reward for a parcel to be consi
 export const NEARBY_DISTANCE_THRESHOLD = 2; // Distance threshold for picking up low-reward parcels
 export const DELIVERY_THRESHOLD = 12; // Minimum reward to consider a parcel for detour
 export const MAX_DETOUR_DISTANCE = 5; // Increased max detour distance slightly
+export const SPAWN_TILES_THRESHOLD = 25 // If the number of spawn tiles is less than this, consider them for detour
+export const SPAWN_TILES_HIGH_FACTOR = 1; // If the number of spawn tiles is more than normal tiles + this, consider them for detour
+
 export const DIRECTIONS = [
     { dx: 0, dy: 1, action: 'move_up' },
     { dx: 0, dy: -1, action: 'move_down' },
