@@ -69,6 +69,8 @@ export class Planner {
 
 
     selectBestParcel() {
+        const myId = this.beliefs.myId;
+        const otherIntents = this.beliefs.getOtherAgentsIntents(myId);
         // *** Clean up expired or collected bans from the ban list (Parcels) ***
         const now = this.currentTurn;
         const bannedParcelIdsToRemove = [];
@@ -98,15 +100,28 @@ export class Planner {
 
         if (!availableAndNotBanned.length) return null;
 
+        let parcels = this.beliefs.availableParcels.filter(parcel => {
+            // Escludi se un altro agente ha già come target questa parcella
+            const inMyArea = !this.beliefs.myAssignedArea ||
+                this.beliefs.myAssignedArea.some(tile => tile.x === parcel.x && tile.y === parcel.y);
+            return inMyArea && !otherIntents.some(intent =>
+                intent.target && intent.target.x === parcel.x && intent.target.y === parcel.y
+            );
+        });
+
+        if (parcels.length === 0) {
+            parcels = this.beliefs.availableParcels; // oppure filtra per aree vicine
+        }
+
         const currentPos = this.beliefs.myPosition;
         if (!currentPos) return null; // Should be checked at the start of getAction
 
         if (this.activeExplorationDesire === this.desires.STRATEGY_CAMPER_SPAWN) {
             const spawnTiles = this.beliefs.spawnTiles;
-            availableAndNotBanned = availableAndNotBanned.filter(p =>
+            parcels = parcels.filter(p =>
                 spawnTiles.some(st => st.x === p.x && st.y === p.y)
             );
-            if (!availableAndNotBanned.length) {
+            if (!parcels.length) {
                 console.log("[Planner] STRATEGY_CAMPER_SPAWN active: No parcels on spawn tiles. Trying to find any parcel now, will resume camper mode later.");
                 // Force exploration to find any parcel
                 return null;
@@ -283,13 +298,21 @@ export class Planner {
                 // Handle case where pathfinding returns 0 steps to exploration target
                 if (this.explorationPath.length === 0 && !isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
                     const tileKey = `${explorationTarget.x},${explorationTarget.y}`;
-                    console.warn(`Pathfinder returned 0 steps to exploration target ${tileKey} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning tile until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
-                    // Add the tile coordinates to the banned exploration tiles list
                     this.bannedExplorationTiles.set(tileKey, this.currentTurn + this.BAN_DURATION);
-                    // Clear the failed path. The next call to getAction will find a *new*, non-banned exploration target.
                     this.explorationPath = [];
-                    // blockedTargetTile and blockedCounter were already reset above.
-                    return null; // Do not attempt to follow an empty path
+                    // Passa la tile appena bannata come set
+                    const bannedThisTurn = new Set([tileKey]);
+                    const newTarget = this.findExplorationTargetTile(currentPos.x, currentPos.y, bannedThisTurn);
+                    if (newTarget && (newTarget.x !== explorationTarget.x || newTarget.y !== explorationTarget.y)) {
+                        this.explorationPath = this.pathfinder.findPath(currentPos.x, currentPos.y, newTarget.x, newTarget.y);
+                        if (this.explorationPath.length > 0) {
+                            return this.followExplorationPath(currentPos.x, currentPos.y);
+                        }
+                    }
+                    // Fallback come già hai
+                    const simpleMove = this.findSimpleValidMove(currentPos.x, currentPos.y);
+                    if (simpleMove) return simpleMove;
+                    return null;
                 }
 
 
@@ -316,62 +339,61 @@ export class Planner {
 
     // findExplorationTargetTile based on the base code (least visited walkable tile everywhere)
     // Modified to filter out banned exploration tiles.
-    findExplorationTargetTile(currentX, currentY) {
-        let candidateTiles = [];
-
-        if (this.activeExplorationDesire === this.desires.STRATEGY_CAMPER_SPAWN ||
-            this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
-            // Se il desiderio è camperare o focalizzare l'esplorazione, usa le spawn tiles come candidati principali
-            candidateTiles = this.beliefs.getSpawnTiles();
-            console.log(`[Exploration] Desire: ${this.activeExplorationDesire.description}. Using spawn tiles for exploration.`);
-        } else {
-            // Se il desiderio è esplorazione generale
-            candidateTiles = this.beliefs.getAllWalkableTiles();
-            console.log(`[Exploration] Desire: ${this.activeExplorationDesire.description}. Exploring all walkable tiles.`);
+    findExplorationTargetTile(currentX, currentY, bannedThisTurn = new Set()) {
+        // 1. Prova prima nella propria area assegnata
+        if (this.beliefs.myAssignedArea && this.beliefs.myAssignedArea.length > 0) {
+            const available = this.beliefs.myAssignedArea.filter(tile => {
+                const tileKey = `${tile.x},${tile.y}`;
+                return (!this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn)
+                    && !bannedThisTurn.has(tileKey);
+            });
+            if (available.length > 0) {
+                return this.findLeastVisitedTile(currentX, currentY, available);
+            }
         }
 
-        if (candidateTiles.length === 0) {
-            console.warn("No candidate tiles for exploration based on active desire.");
-            // Fallback per STRATEGY_FOCUS_SPAWN_EXPLORATION se tutte le spawn sono bannate/inaccessibili
-            if (this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
-                console.log("[Exploration] All spawn tiles banned/inaccessible. Trying with normal tiles (fallback for focus spawn).");
-                const normalTilesNotBanned = this.beliefs.getNormalTiles().filter(tile => {
-                    const tileKey = `${tile.x},${tile.y}`;
-                    return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
-                });
-                if (normalTilesNotBanned.length > 0) {
-                    return this.findLeastVisitedTile(currentX, currentY, normalTilesNotBanned);
+        // 2. Se la propria area è vuota, cerca la più vicina tra le altre aree di spawn
+        const allAreas = this.beliefs.getSpawnAreasFromTiles();
+        let minDist = Infinity, bestTile = null;
+        for (const area of allAreas) {
+            if (this.beliefs.myAssignedArea && area === this.beliefs.myAssignedArea) continue;
+            for (const tile of area) {
+                const tileKey = `${tile.x},${tile.y}`;
+                if ((this.bannedExplorationTiles.has(tileKey) && this.bannedExplorationTiles.get(tileKey) > this.currentTurn)
+                    || bannedThisTurn.has(tileKey)) continue;
+                const dist = Math.abs(tile.x - currentX) + Math.abs(tile.y - currentY);
+                if (dist < minDist) {
+                    minDist = dist;
+                    bestTile = tile;
                 }
             }
-            return null;
         }
+        if (bestTile) return bestTile;
 
-        // Filtra le tiles attualmente bannate
-        const availableExplorationTiles = candidateTiles.filter(tile => {
+        // 3. Fallback: esplora tra tutte le spawn tile non bannate
+        const fallbackTiles = this.beliefs.getSpawnTiles().filter(tile => {
             const tileKey = `${tile.x},${tile.y}`;
-            return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
+            return (!this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn)
+                && !bannedThisTurn.has(tileKey);
         });
-
-        if (availableExplorationTiles.length === 0) {
-            console.warn("All available exploration tiles for the current desire are banned or inaccessible.");
-            // Gestione del fallback anche qui, se tutte le *candidate* sono bannate
-            if (this.activeExplorationDesire === this.desires.STRATEGY_FOCUS_SPAWN_EXPLORATION) {
-                console.log("[Exploration] All spawn tiles available were banned. Trying with normal tiles (fallback for focus spawn).");
-                const normalTilesNotBanned = this.beliefs.getNormalTiles().filter(tile => {
-                    const tileKey = `${tile.x},${tile.y}`;
-                    return !this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn;
-                });
-                if (normalTilesNotBanned.length > 0) {
-                    return this.findLeastVisitedTile(currentX, currentY, normalTilesNotBanned);
-                }
-            }
-            return null;
+        if (fallbackTiles.length > 0) {
+            return this.findLeastVisitedTile(currentX, currentY, fallbackTiles);
         }
 
-        return this.findLeastVisitedTile(currentX, currentY, availableExplorationTiles);
+        // 4. Fallback finale: esplora tra tutte le normal tiles non bannate
+        const normalTilesNotBanned = this.beliefs.getNormalTiles().filter(tile => {
+            const tileKey = `${tile.x},${tile.y}`;
+            return (!this.bannedExplorationTiles.has(tileKey) || this.bannedExplorationTiles.get(tileKey) <= this.currentTurn)
+                && !bannedThisTurn.has(tileKey);
+        });
+        if (normalTilesNotBanned.length > 0) {
+            return this.findLeastVisitedTile(currentX, currentY, normalTilesNotBanned);
+        }
+
+        return null;
     }
 
-    findLeastVisitedTile(currentX, currentY, tiles) {
+    findLeastVisitedTile(currentX, currentY, tiles, bannedThisTurn = new Set()) {
         if (tiles.length === 0) {
             return null;
         }
@@ -389,6 +411,7 @@ export class Planner {
 
         for (const tile of sortedAvailableTiles) {
             const key = `${tile.x},${tile.y}`;
+            if (bannedThisTurn.has(key)) continue; // <-- Escludi tile appena bannate
             const visits = this.explorationMap.get(key) || 0;
             const distance = this.pathfinder.heuristic(currentX, currentY, tile.x, tile.y);
 

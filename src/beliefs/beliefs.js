@@ -1,3 +1,5 @@
+import { INTENT } from "../utils/utils.js";
+
 export class Beliefs {
     constructor() {
         this.map = null;
@@ -11,6 +13,8 @@ export class Beliefs {
         this.normalTiles = [];
         this.emptyTiles = [];
         this.myId = null;
+        this.agentIntents = {}; // { agentId: { target: {x, y} } }
+        this.myAssignedArea = null; // Area assigned to this agent
 
         this.mapWidth = 0;
         this.mapHeight = 0;
@@ -53,6 +57,23 @@ export class Beliefs {
 
         // Calculate available parcels (not carried by others)
         this.availableParcels = this.parcels.filter(p => !p.carriedBy);
+    }
+
+    updateAgentIntent(agentId, msg) {
+        try {
+            const data = typeof msg === "string" ? JSON.parse(msg) : msg;
+            if (data.type === INTENT) {
+                this.agentIntents[agentId] = data;
+            }
+        } catch (e) {
+            console.error(`Failed to update intent for agent ${agentId}:`, e);
+        }
+    }
+
+    getOtherAgentsIntents(myId) {
+        return Object.entries(this.agentIntents)
+            .filter(([id]) => id !== myId)
+            .map(([id, data]) => ({ agentId: id, ...data }));
     }
 
     // 0 = empty tile, 1 = spawn tile, 2 = delivery tile, 3 = normal tile
@@ -148,5 +169,46 @@ export class Beliefs {
 
     getNormalTiles() {
         return this.normalTiles;
+    }
+
+    getSpawnAreasFromTiles() {
+        // Trova tutte le tile di spawn
+        const spawnTiles = this.getSpawnTiles()
+        const visited = new Set();
+        const areas = [];
+
+        const directions = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+        ];
+
+        for (const tile of spawnTiles) {
+            const key = `${tile.x},${tile.y}`;
+            if (visited.has(key)) continue;
+
+            // BFS per trovare tutte le tile adiacenti
+            const area = [];
+            const queue = [tile];
+            visited.add(key);
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                area.push(current);
+
+                for (const { dx, dy } of directions) {
+                    const nx = current.x + dx;
+                    const ny = current.y + dy;
+                    const nkey = `${nx},${ny}`;
+                    if (visited.has(nkey)) continue;
+                    const neighbor = spawnTiles.find(t => t.x === nx && t.y === ny);
+                    if (neighbor) {
+                        queue.push(neighbor);
+                        visited.add(nkey);
+                    }
+                }
+            }
+            areas.push(area);
+        }
+        return areas; // Array di array di tile di spawn adiacenti
     }
 }

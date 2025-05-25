@@ -1,15 +1,15 @@
 - Pulire il codice (Alcune funzioni si ripetono)
 
-- Gestire meglio secondo BDI
+- Ok la divisione in aree, ma la cosa migliore è
+che le aree abbastanza vicine vengano comunque guardate
+e non completamente ignorate ------------------------------------------------ FATTO
 
-- Testare contro altri agenti IN MOVIMENTO
- (Testing con agenti fermi sembra andare bene)
+- Quando c'è una singola area di spawn, dividerla longitudinalmente
+o latitudinalmente in modo che i due agenti evitino comunque di andare
+nelle stesse direzioni ------------------------------------------------------ FATTO
 
-- Quando non ci sono parcelle forse al posto di avere una 
-valutazione di tiles non ancora visistate (come al momento) 
-forse sarebbe meglio mandarlo solo verso il centro della mappa.
-Risolverebbe in parte anche il problema di voler andare su una tile specifica
-e bloccarsi se c'è un agente che gli blocca la strada 
-(Probabilmente non valida, ha senso solo in mappe che hanno
-area di spawn in tutta la mappa e non in quelle dove l'area di spawn
-è solo in una zona limitata)
+- Se un'area non ha parcelle, al posto di stare fermo guarda l'area più vicina
+(24c2_3 esempio in cui restano fermi al momento) 
+
+- Quando vede una parcella e poi scompare dal suo campo visivo e poi ricompare
+fa avanti e indietro. (24c2_3)

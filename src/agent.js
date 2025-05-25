@@ -8,7 +8,7 @@ import config from "../config.js";
 
 class Agent {
     constructor() {
-        this.api = new DeliverooApi(config.host, config.token);
+        this.api = new DeliverooApi(config.host, config.token[0]);
         this.beliefs = new Beliefs();
         this.pathfinder = new Pathfinder(this.beliefs);
         this.deliveryStrategy = new DeliveryStrategy(this.beliefs, this.pathfinder);

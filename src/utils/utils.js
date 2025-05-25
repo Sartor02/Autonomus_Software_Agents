@@ -3,13 +3,15 @@ import fs from 'fs'
 export const BLOCKED_TIMEOUT = 2; // Threshold: after BLOCKED_TIMEOUT turns blocked on the same target tile, recalculate path
 export const STUCK_TIMEOUT = 5; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
 export const BAN_DURATION = 10; // How many turns to ban a blocked/unreachable parcel
-export const MIN_GENERAL_REWARD = 10; // Minimum reward for a parcel to be considered generally
-export const NEARBY_DISTANCE_THRESHOLD = 2; // Distance threshold for picking up low-reward parcels
-export const DELIVERY_THRESHOLD = 12; // Minimum reward to consider a parcel for detour
-export const MAX_DETOUR_DISTANCE = 5; // Increased max detour distance slightly
+export const MIN_GENERAL_REWARD = 5; // Minimum reward for a parcel to be considered generally
+export const NEARBY_DISTANCE_THRESHOLD = 5; // Distance threshold for picking up low-reward parcels
+export const DELIVERY_THRESHOLD = 5; // Minimum reward to consider a parcel for detour
+export const MAX_DETOUR_DISTANCE = 10; // Increased max detour distance slightly
 export const SPAWN_TILES_THRESHOLD = 25 // If the number of spawn tiles is less than this, consider them for detour
 export const SPAWN_TILES_HIGH_FACTOR = 1; // If the number of spawn tiles is more than normal tiles + this, consider them for detour
 export const USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
+export const HANDSHAKE = '[HANDSHAKE_INIT]'; // Handshake message to identify the agent
+export const INTENT = '[INTENT]'; // Intent message to announce target and area
 
 export const DIRECTIONS = [
     { dx: 0, dy: 1, action: 'move_up' },
