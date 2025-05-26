@@ -1,6 +1,6 @@
 // strategies/greedy.js
 import { Desires } from "../desires/desires.js";
-import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT } from "../utils/utils.js";
+import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT, TARGET_LOST_THRESHOLD } from "../utils/utils.js";
 import { isAtPosition } from "../utils/utils.js";
 
 export class Planner {
@@ -34,6 +34,11 @@ export class Planner {
         this.NEARBY_DISTANCE_THRESHOLD = NEARBY_DISTANCE_THRESHOLD; // Distance threshold for picking up low-reward parcels
 
         this.activeExplorationDesire = null; // Track the active exploration desire
+
+        this.currentParcelTarget = null;
+        this.targetLostTurns = 0;
+        this.targetLostThreshold = TARGET_LOST_THRESHOLD // Numero di turni prima di cambiare target
+
     }
 
     initializeMapKnowledge() {
@@ -219,7 +224,8 @@ export class Planner {
 
         // 2. Parcel collection
         // selectBestParcel will now return the best parcel >= MIN_GENERAL_REWARD or nearby, and not banned
-        let bestParcel = this.selectBestParcel();
+        this.updateParcelTarget();
+        let bestParcel = this.currentParcelTarget;
 
         // Check if the best parcel exists AND its location is currently occupied by another agent
         // Note: If bestParcel is null here, it means either no suitable parcels available (after reward/distance filter),
@@ -529,5 +535,33 @@ export class Planner {
             }
         }
         return null; // No valid move
+    }
+
+
+    updateParcelTarget() {
+        const visibleParcels = this.beliefs.availableParcels;
+
+        // Se ho già un target, controllo se è ancora visibile
+        if (this.currentParcelTarget) {
+            const stillVisible = visibleParcels.find(p => p.id === this.currentParcelTarget.id);
+            if (stillVisible) {
+                this.targetLostTurns = 0;
+                return;
+            } else {
+                this.targetLostTurns += 1;
+                // Se il target è "perso" da troppo tempo, resetto
+                if (this.targetLostTurns < this.targetLostThreshold) {
+                    return;
+                }
+            }
+        }
+        // Scegli un nuovo target se non ne ho uno valido
+        const bestParcel = this.selectBestParcel();
+        if (bestParcel) {
+            this.currentParcelTarget = bestParcel;
+            this.targetLostTurns = 0;
+        } else {
+            this.currentParcelTarget = null;
+        }
     }
 }

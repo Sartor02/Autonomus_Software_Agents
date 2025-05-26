@@ -8,8 +8,8 @@ e non completamente ignorate ------------------------------------------------ FA
 o latitudinalmente in modo che i due agenti evitino comunque di andare
 nelle stesse direzioni ------------------------------------------------------ FATTO
 
-- Se un'area non ha parcelle, al posto di stare fermo guarda l'area più vicina
-(24c2_3 esempio in cui restano fermi al momento) 
+- Se un'area non ha parcelle, al posto di stare fermo guarda l'area 
+più vicina (24c2_3 esempio in cui restano fermi al momento) ----------------- FATTO
 
-- Quando vede una parcella e poi scompare dal suo campo visivo e poi ricompare
-fa avanti e indietro. (24c2_3)
+- Quando vede una parcella e poi scompare dal suo campo visivo e poi 
+ricompare fa avanti e indietro. (24c2_3) ------------------------------------ FATTO

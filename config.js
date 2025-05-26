@@ -3,8 +3,8 @@ const config = {
     // host: "https://deliveroojs.onrender.com",
     // host: "https://deliveroojs25.azurewebsites.net/",
 
-    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImE1OGJkMCIsIm5hbWUiOiJ0ZXN0MSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ4MDY5MzQwfQ.7lFpwou_kHUZmzBBdz-6dsP62M4yd0e2AI9I6GQ8LYM',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJmNmZkOCIsIm5hbWUiOiJ0ZXN0MiIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ4MDY5MzU2fQ.bk9lPREaVnuR6CFGRkfF_zC1JN_z6F3NqUqH-h4xltc']
+    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjYwNWZhNCIsIm5hbWUiOiJ0ZXN0MSIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ3ODk0MzYzfQ.pKP_4DIcTW_JgxT7R4KDrD3WZ06BfrOWUaRy2qn3STI',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjI3NmM5MiIsIm5hbWUiOiJ0ZXN0MiIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzQ3ODk0NTc3fQ.n-URL9lF-QA4Qwvwn_FRxTGkkyhPjDiP8xyCYCo66lo']
 }
 
 export default config;

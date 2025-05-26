@@ -9,9 +9,10 @@ export const DELIVERY_THRESHOLD = 5; // Minimum reward to consider a parcel for 
 export const MAX_DETOUR_DISTANCE = 10; // Increased max detour distance slightly
 export const SPAWN_TILES_THRESHOLD = 25 // If the number of spawn tiles is less than this, consider them for detour
 export const SPAWN_TILES_HIGH_FACTOR = 1; // If the number of spawn tiles is more than normal tiles + this, consider them for detour
+export const TARGET_LOST_THRESHOLD = 10; // How many turns to wait before giving up on a target parcel
 export const USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
-export const HANDSHAKE = '[HANDSHAKE_INIT]'; // Handshake message to identify the agent
-export const INTENT = '[INTENT]'; // Intent message to announce target and area
+export const HANDSHAKE = '[DESCANTA_HANDSHAKE_INIT]'; // Handshake message to identify the agent
+export const INTENT = '[DESCANTA_INTENT]'; // Intent message to announce target and area
 
 export const DIRECTIONS = [
     { dx: 0, dy: 1, action: 'move_up' },

@@ -127,10 +127,14 @@ class Agent {
     getAssignedSpawnArea() {
         const areas = this.beliefs.getSpawnAreasFromTiles();
 
-        if (areas.length === 1) {
-            // Divisione longitudinale (per x) o latitudinale (per y)
-            console.log(`[AGENT - ${this.beliefs.myId}] Only one spawn area available, dividing it.`);
-            const area = areas[0];
+        // NEW: Check if there are zero normal tiles (solo spawn e delivery)
+        const normalTiles = this.beliefs.getNormalTiles ? this.beliefs.getNormalTiles() : [];
+        const treatAsSingleArea = normalTiles.length === 0;
+
+        if (areas.length === 1 || treatAsSingleArea) {
+            // Unisci tutte le aree se treatAsSingleArea è true
+            console.log(`[AGENT - ${this.beliefs.myId}] ${areas.length} spawn areas found, treating as single area: ${treatAsSingleArea}`);
+            const area = treatAsSingleArea ? areas.flat() : areas[0];
             const allAgents = Array.from(this.knownAgents);
             allAgents.push(this.beliefs.myId);
             allAgents.sort();
@@ -149,7 +153,6 @@ class Agent {
                 const areaFiltered = area.filter(t => myIndex === 0 ? t.x <= midX : t.x > midX);
                 return areaFiltered;
             } else {
-                console.log(`[AGENT - ${this.beliefs.myId}] Dividing area horizontally.`);
                 // Divisione orizzontale (per y)
                 const midY = Math.floor((minY + maxY) / 2);
                 const areaFiltered = area.filter(t => myIndex === 0 ? t.y <= midY : t.y > midY);
