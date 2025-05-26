@@ -1,10 +1,11 @@
 // strategies/greedy.js
 import { Desires } from "../desires/desires.js";
-import { BAN_DURATION, BLOCKED_TIMEOUT, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT, TARGET_LOST_THRESHOLD } from "../utils/utils.js";
+import { BAN_DURATION, BLOCKED_TIMEOUT, CARRIER, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, RUNNER, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT, TARGET_LOST_THRESHOLD } from "../utils/utils.js";
 import { isAtPosition } from "../utils/utils.js";
 
 export class Planner {
-    constructor(beliefs, deliveryStrategy, pathfinder) {
+    constructor(beliefs, deliveryStrategy, pathfinder, announceIntentCallback = null) {
+        this.announceIntent = announceIntentCallback;
         this.beliefs = beliefs;
         this.deliveryStrategy = deliveryStrategy;
         this.pathfinder = pathfinder;
@@ -38,6 +39,13 @@ export class Planner {
         this.currentParcelTarget = null;
         this.targetLostTurns = 0;
         this.targetLostThreshold = TARGET_LOST_THRESHOLD // Numero di turni prima di cambiare target
+
+        this.isHandoverMode = false;
+        this.isRunner = false;
+        this.isCarrier = false;
+        this.handoverTile = null;
+        this.spawnTile = null;
+        this.deliveryTile = null;
 
     }
 
@@ -102,6 +110,13 @@ export class Planner {
 
         // Filter out parcels that are currently banned
         let availableAndNotBanned = this.beliefs.availableParcels.filter(p => !this.bannedParcels.has(p.id));
+
+        // --- AGGIUNTA: se sono runner in handover, ignora le parcel sulla handoverTile ---
+        if (this.isHandoverMode && this.isRunner && this.handoverTile) {
+            availableAndNotBanned = availableAndNotBanned.filter(
+                p => !(p.x === this.handoverTile.x && p.y === this.handoverTile.y)
+            );
+        }
 
         if (!availableAndNotBanned.length) return null;
 
@@ -173,6 +188,126 @@ export class Planner {
     getAction() {
         // Increment turn counter at the start of each action cycle
         this.currentTurn++;
+
+        if (this.isHandoverMode) {
+            const pos = this.beliefs.myPosition;
+
+            // Debug: stampa i ruoli conosciuti
+            //console.log(`[HANDOVER] Agent ${this.beliefs.myId} - My role: ${this.myRole}, Known roles:`, this.beliefs.agentRoles);
+
+            if (this.beliefs.agentRoles) {
+                const otherAgents = Object.keys(this.beliefs.agentRoles).filter(id => id !== this.beliefs.myId);
+                if (otherAgents.length > 0) {
+                    const otherId = otherAgents[0];
+                    const otherRole = this.beliefs.agentRoles[otherId];
+
+                    if (otherRole && otherRole === this.myRole) {
+                        // Conflitto: entrambi runner o entrambi carrier
+                        console.log(`[HANDOVER - AGENT ${this.beliefs.myId}] Conflitto rilevato! Io: ${this.myRole}, Altro: ${otherRole}`);
+
+                        const myInitPos = this.beliefs.initialAgentPositions?.[this.beliefs.myId] || this.beliefs.myPosition;
+                        const otherInitPos = this.beliefs.initialAgentPositions?.[otherId];
+                        console.log(`[HANDOVER] Posizioni iniziali: Io=${myInitPos}, Altro=${otherInitPos}`);
+                        let myDist = Infinity, otherDist = Infinity;
+                        console.log(`[HANDOVER] Inizializzo distanze: myDist=${myDist}, otherDist=${otherDist}`);
+                        if (myInitPos) myDist = Math.abs(myInitPos.x - this.spawnTile.x) + Math.abs(myInitPos.y - this.spawnTile.y);
+                        if (otherInitPos) otherDist = Math.abs(otherInitPos.x - this.spawnTile.x) + Math.abs(otherInitPos.y - this.spawnTile.y);
+
+                        console.log(`[HANDOVER] Distanze calcolate: myDist=${myDist}, otherDist=${otherDist}`);
+                        if (myDist < otherDist || (myDist === otherDist && this.beliefs.myId < otherId)) {
+                            this.isRunner = true;
+                            this.isCarrier = false;
+                            this.myRole = RUNNER;
+                        } else {
+                            this.isRunner = false;
+                            this.isCarrier = true;
+                            this.myRole = CARRIER;
+                        }
+                        console.log(`[HANDOVER] Ruolo aggiornato: ${this.myRole}`);
+
+                        // Ri-annuncia il ruolo corretto
+                        if (this.announceIntent) {
+                            console.log(`[HANDOVER] Ri-annuncio ruolo: ${this.myRole}`);
+                            this.announceIntent(null, null, this.myRole, this.handoverTile);
+                        }
+                    }
+                }
+            }
+            if (this.isRunner) {
+                if (!this.beliefs.hasParcel()) {
+                    console.log(`[AGENT ${this.beliefs.myId} RUNNER] Runner without parcel, going to spawn or handover tile.`);
+                    // Vai a spawn e prendi pacco
+                    if (pos.x === this.spawnTile.x && pos.y === this.spawnTile.y) {
+                        const parcel = this.beliefs.availableParcels.find(p => p.x === pos.x && p.y === pos.y);
+                        if (parcel) return { action: 'pickup', target: parcel.id };
+                    }
+                    return this.moveTo(this.spawnTile.x, this.spawnTile.y);
+                } else {
+                    // Se sono sopra la handoverTile
+                    if (pos.x === this.handoverTile.x && pos.y === this.handoverTile.y) {
+                        // Metti giù solo se NON c'è già una parcella e il carrier NON è sopra
+                        const alreadyParcel = this.beliefs.availableParcels.some(
+                            p => p.x === this.handoverTile.x && p.y === this.handoverTile.y
+                        );
+                        if (!alreadyParcel && !this.isBlockedByOtherAgent(pos.x, pos.y)) {
+                            if (!alreadyParcel && !this.isBlockedByOtherAgent(pos.x, pos.y)) {
+                                // Dopo il putdown, resetta il target per evitare di riprenderla subito
+                                this.currentParcelTarget = null;
+                                this.targetLostTurns = 0;
+                                return { action: 'putdown' };
+                            }
+                        } else {
+                            // Allontanati subito dalla handoverTile (verso spawn)
+                            return this.moveToAdjacent(this.handoverTile.x, this.handoverTile.y) || this.moveTo(this.spawnTile.x, this.spawnTile.y);
+                        }
+                    } else {
+                        // Vai verso la handoverTile solo se libera
+                        if (!this.isBlockedByOtherAgent(this.handoverTile.x, this.handoverTile.y)) {
+                            return this.moveTo(this.handoverTile.x, this.handoverTile.y);
+                        } else {
+                            // Aspetta vicino
+                            return this.moveToAdjacent(this.handoverTile.x, this.handoverTile.y);
+                        }
+                    }
+                }
+            }
+
+            // --- CARRIER ---
+            if (this.isCarrier) {
+                console.log(`[AGENT ${this.beliefs.myId} CARRIER] Going to handover tile or delivery tile.`);
+                const parcel = this.beliefs.availableParcels.find(
+                    p => p.x === this.handoverTile.x && p.y === this.handoverTile.y
+                );
+                if (!this.beliefs.hasParcel()) {
+                    if (parcel) {
+                        // Se sono sopra la handoverTile, prendi la parcella
+                        if (pos.x === this.handoverTile.x && pos.y === this.handoverTile.y) {
+                            return { action: 'pickup', target: parcel.id };
+                        }
+                        // Avvicinati solo se la tile è libera
+                        if (!this.isBlockedByOtherAgent(this.handoverTile.x, this.handoverTile.y)) {
+                            return this.moveTo(this.handoverTile.x, this.handoverTile.y);
+                        } else {
+                            // Aspetta su una tile adiacente
+                            return this.moveToAdjacent(this.handoverTile.x, this.handoverTile.y);
+                        }
+                    } else {
+                        // Aspetta vicino alla handoverTile
+                        if (pos.x === this.handoverTile.x && pos.y === this.handoverTile.y) {
+                            // Se sopra la handoverTile ma non c'è pacco, spostati su una tile adiacente
+                            return this.moveToAdjacent(this.handoverTile.x, this.handoverTile.y);
+                        }
+                        return this.moveTo(this.handoverTile.x, this.handoverTile.y);
+                    }
+                } else {
+                    // Hai pacco: vai a delivery
+                    if (this.beliefs.isDeliveryTile(pos.x, pos.y)) {
+                        return { action: 'putdown' };
+                    }
+                    return this.moveTo(this.deliveryTile.x, this.deliveryTile.y);
+                }
+            }
+        }
 
         // *** Clean up expired bans from the ban list (Exploration Tiles) ***
         const now = this.currentTurn;
@@ -563,5 +698,88 @@ export class Planner {
         } else {
             this.currentParcelTarget = null;
         }
+    }
+
+    setupHandoverIfNeeded() {
+        const spawnTiles = this.beliefs.getSpawnTiles ? this.beliefs.getSpawnTiles() : [];
+        const deliveryTiles = this.beliefs.getDeliveryTiles ? this.beliefs.getDeliveryTiles() : [];
+        if (spawnTiles.length === 1 && deliveryTiles.length === 1) {
+            this.isHandoverMode = true;
+            this.spawnTile = spawnTiles[0];
+            this.deliveryTile = deliveryTiles[0];
+            const path = this.pathfinder.findPath(this.spawnTile.x, this.spawnTile.y, this.deliveryTile.x, this.deliveryTile.y);
+            this.handoverTile = path.length > 2 ? path[Math.floor(path.length / 2)] : (path[1] || this.spawnTile);
+            console.log(`[Planner] Handover mode enabled: Spawn at (${this.spawnTile.x}, ${this.spawnTile.y}), Delivery at (${this.deliveryTile.x}, ${this.deliveryTile.y}), Handover at (${this.handoverTile.x}, ${this.handoverTile.y})`);
+
+            // --- Calcola ruolo usando le posizioni iniziali ---
+            let myDist = Math.abs(this.beliefs.myPosition.x - this.spawnTile.x) + Math.abs(this.beliefs.myPosition.y - this.spawnTile.y);
+            let minDist = myDist;
+            let myId = this.beliefs.myId;
+            let runnerId = myId;
+
+            console.log(`[Planner] My initial position: (${this.beliefs.myPosition.x}, ${this.beliefs.myPosition.y}), Distance to spawn: ${myDist}`);
+
+            // Usa le posizioni iniziali degli altri agenti
+            if (this.beliefs.initialAgentPositions) {
+                for (const [agentId, pos] of Object.entries(this.beliefs.initialAgentPositions)) {
+                    const d = Math.abs(pos.x - this.spawnTile.x) + Math.abs(pos.y - this.spawnTile.y);
+                    if (d < minDist || (d === minDist && agentId < runnerId)) {
+                        minDist = d;
+                        runnerId = agentId;
+                    }
+                }
+            }
+
+            if (myId === runnerId) {
+                this.isRunner = true;
+                this.isCarrier = false;
+                this.myRole = RUNNER;
+            } else {
+                this.isRunner = false;
+                this.isCarrier = true;
+                this.myRole = CARRIER;
+            }
+            if (this.announceIntent) {
+                this.announceIntent(null, null, this.myRole, this.handoverTile);
+            }
+        }
+    }
+
+    /**
+         * Moves towards the specified (x, y) coordinates using the pathfinder.
+         * Returns an action object like { action: 'up' } or null if no move is possible.
+         */
+    moveTo(targetX, targetY) {
+        const currentPos = this.beliefs.myPosition;
+        if (!currentPos) return null;
+        // If already at target, no move needed
+        if (isAtPosition(currentPos.x, currentPos.y, targetX, targetY)) return null;
+        // Find path to target
+        const path = this.pathfinder.findPath(currentPos.x, currentPos.y, targetX, targetY);
+        if (path.length === 0) return null;
+        const nextStep = path[0];
+        const action = this.pathfinder.getActionToNextStep(currentPos.x, currentPos.y, nextStep.x, nextStep.y);
+        if (action) {
+            this.recordPosition(nextStep.x, nextStep.y);
+            return { action: action };
+        }
+        return null;
+    }
+
+    moveToAdjacent(targetX, targetY) {
+        // Trova una tile adiacente libera e cammina lì
+        const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+        ];
+        const pos = this.beliefs.myPosition;
+        for (const dir of dirs) {
+            const nx = targetX + dir.dx;
+            const ny = targetY + dir.dy;
+            if (this.beliefs.isWalkable(nx, ny) && !(nx === pos.x && ny === pos.y)) {
+                return this.moveTo(nx, ny);
+            }
+        }
+        return null; // Se non trova nulla, resta fermo
     }
 }

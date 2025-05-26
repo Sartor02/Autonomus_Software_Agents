@@ -5,7 +5,7 @@ import { Planner } from "./strategies/planner.js";
 import { DeliveryStrategy } from "./strategies/delivery.js";
 import { Pathfinder } from "./plans/pathfinder.js";
 import config from "../config.js";
-import { HANDSHAKE, INTENT } from "./utils/utils.js";
+import { HANDSHAKE, INTENT, RUNNER } from "./utils/utils.js";
 
 class Agent {
     constructor(token) { // Il costruttore ora accetta un token
@@ -13,12 +13,18 @@ class Agent {
         this.beliefs = new Beliefs();
         this.pathfinder = new Pathfinder(this.beliefs);
         this.deliveryStrategy = new DeliveryStrategy(this.beliefs, this.pathfinder);
-        this.strategy = new Planner(this.beliefs, this.deliveryStrategy, this.pathfinder);
+        this.strategy = new Planner(
+            this.beliefs,
+            this.deliveryStrategy,
+            this.pathfinder,
+            (target, area, role, handoverTile) => this.announceIntent(target, area, role, handoverTile)
+        );
 
         this.isActing = false; // To avoid overlapping actions
         this.knownAgents = new Set();
         this.hasAnnounced = false;
         this.areaAnnounced = false;
+        this.handoverSetupDone = false;
 
         this.lastAnnouncedTarget = null;
         this.setupEventListeners();
@@ -54,20 +60,38 @@ class Agent {
                 this.strategy.recordPosition(newPos.x, newPos.y);
             }
 
+            if (!this.handoverSetupDone) {
+                this.strategy.setupHandoverIfNeeded();
+                this.handoverSetupDone = true; // Assicurati che venga fatto solo una volta
+            }
+
             // Ricezione broadcast di identificazione
             this.api.onMsg((fromId, name, msg, reply) => {
                 try {
                     const data = typeof msg === "string" ? JSON.parse(msg) : msg;
                     console.log(`[AGENT - ${this.beliefs.myId}] Received message from ${fromId}:`, data);
                     // Identificazione (broadcast)
+                    if (!data.agentId) data.agentId = fromId; // Assicurati che agentId sia sempre presente
                     if (data.type === HANDSHAKE && data.agentId && data.agentId !== this.beliefs.myId) {
                         this.knownAgents.add(data.agentId);
                         console.log(`[AGENT - ${this.beliefs.myId}] Known agents updated:`, Array.from(this.knownAgents));
-                        // Puoi anche salvare la posizione iniziale degli altri agenti se utile
-                    }
-                    // Intenti
+                        if (!this.beliefs.initialAgentPositions) this.beliefs.initialAgentPositions = {};
+                        this.beliefs.initialAgentPositions[data.agentId] = data.position;
+                        console.log(`[AGENT - ${this.beliefs.myId}] Known agents updated:`, Array.from(this.knownAgents));
+                    } // Intenti
                     if (data.type === INTENT && data.agentId && data.agentId !== this.beliefs.myId) {
                         this.beliefs.updateAgentIntent(data.agentId, data);
+                        if (data.role) {
+                            if (!this.beliefs.agentRoles) {
+                                this.beliefs.agentRoles = {}; // Assicurati che esista
+                            }
+                            this.beliefs.agentRoles[data.agentId] = data.role;
+                            console.log(`[AGENT - ${this.beliefs.myId}] Updated role for agent ${data.agentId}: ${data.role}`);
+                            console.log(`[AGENT - ${this.beliefs.myId}] All known roles:`, this.beliefs.agentRoles);
+                        }
+                        if (data.handoverTile) {
+                            this.beliefs.handoverTile = data.handoverTile;
+                        }
                         console.log(`[AGENT - ${this.beliefs.myId}] Updated intent for agent ${data.agentId}`);
                     }
                 } catch (e) { }
@@ -107,13 +131,15 @@ class Agent {
         });
     }
 
-    announceIntent(target, area) {
-        if (!target) return;
+    announceIntent(target, area, role, handoverTile) {
+        if (!target && !role) return; // Allow role-only announcements for handover
         const intentMsg = JSON.stringify({
             type: INTENT,
             agentId: this.beliefs.myId,
             target,
-            area // puoi aggiungere info sull'area di spawn scelta
+            area, // puoi aggiungere info sull'area di spawn scelta
+            role,
+            handoverTile
         });
         // Comunica direttamente a tutti gli altri agenti noti
         for (const otherId of this.knownAgents) {
@@ -199,6 +225,16 @@ class Agent {
         );
 
         if (parcelAtCurrentPos) {
+            // Se la parcella è nella stessa posizione dell'handoff tile io non devo recuperarla, quindi return
+            if (
+                this.beliefs.handoverTile &&
+                parcelAtCurrentPos.x === this.beliefs.handoverTile.x &&
+                parcelAtCurrentPos.y === this.beliefs.handoverTile.y &&
+                this.strategy.isRunner) {
+                this.api.emitMove('down');
+                return;
+            }
+
             this.isActing = true;
             try {
                 await this.api.emitPickup();

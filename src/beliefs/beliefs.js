@@ -15,6 +15,10 @@ export class Beliefs {
         this.myId = null;
         this.agentIntents = {}; // { agentId: { target: {x, y} } }
         this.myAssignedArea = null; // Area assigned to this agent
+        this.agentRole = null; // Role of this agent (e.g., "explorer", "collector", etc.)
+        this.handoverTile = null; // Tile where handover happens
+        this.agentRoles = {};
+        this.initialAgentPositions = {}; // Store initial positions of agents
 
         this.mapWidth = 0;
         this.mapHeight = 0;
@@ -171,6 +175,10 @@ export class Beliefs {
         return this.normalTiles;
     }
 
+    getDeliveryTiles() {
+        return this.deliveryTiles;
+    }
+
     getSpawnAreasFromTiles() {
         // Trova tutte le tile di spawn
         const spawnTiles = this.getSpawnTiles()
@@ -210,5 +218,9 @@ export class Beliefs {
             areas.push(area);
         }
         return areas; // Array di array di tile di spawn adiacenti
+    }
+
+    hasParcel() {
+        return this.parcels.some(p => p.carriedBy === this.myId);
     }
 }

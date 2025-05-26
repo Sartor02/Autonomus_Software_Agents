@@ -13,6 +13,8 @@ export const TARGET_LOST_THRESHOLD = 10; // How many turns to wait before giving
 export const USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
 export const HANDSHAKE = '[DESCANTA_HANDSHAKE_INIT]'; // Handshake message to identify the agent
 export const INTENT = '[DESCANTA_INTENT]'; // Intent message to announce target and area
+export const RUNNER = 'runner';
+export const CARRIER = 'carrier';
 
 export const DIRECTIONS = [
     { dx: 0, dy: 1, action: 'move_up' },
