@@ -1,15 +1,7 @@
 - Pulire il codice (Alcune funzioni si ripetono)
-
-- Ok la divisione in aree, ma la cosa migliore è
-che le aree abbastanza vicine vengano comunque guardate
-e non completamente ignorate ------------------------------------------------ FATTO
-
-- Quando c'è una singola area di spawn, dividerla longitudinalmente
-o latitudinalmente in modo che i due agenti evitino comunque di andare
-nelle stesse direzioni ------------------------------------------------------ FATTO
-
-- Se un'area non ha parcelle, al posto di stare fermo guarda l'area 
-più vicina (24c2_3 esempio in cui restano fermi al momento) ----------------- FATTO
-
-- Quando vede una parcella e poi scompare dal suo campo visivo e poi 
-ricompare fa avanti e indietro. (24c2_3) ------------------------------------ FATTO
+- Fondere assieme agent.js con multiagent.js (basta un controllo
+sul numero di token in config)
+- Aggiungere la parte di PDDL
+- Dalla seconda challange non mi pare ci sia nulla da modificare
+(forse un controllo sulla tile di delivery nel caso sia occupata
+più per completezza)
