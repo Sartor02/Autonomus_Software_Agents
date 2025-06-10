@@ -1,21 +1,31 @@
 {
-  "name": "deliverooagent",
+  "name": "autonomous-software-agents",
   "version": "1.0.0",
-  "description": "",
+  "description": "Project for Autonomous Software Agents Course 2025",
   "type": "module",
-  "main": "index.js",
-  "module": "index.js",
+  "main": "main.js",
+  "module": "main.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Marco",
+  "authors": [
+    {
+      "name": "Fabio Missagia",
+      "email": "fabio.missagia@gmail.com"
+    },
+    {
+      "name": "Alessandro Sartore",
+      "email": "alessandrosartore02@gmail.com"
+    }
+  ],
+  "team": "Descanta Bauchi",
   "license": "ISC",
   "devDependencies": {
     "dotenv": "^16.0.3"
   },
   "dependencies": {
-    "@unitn-asa/deliveroo-js-client": "^2.0.2",
+    "@unitn-asa/deliveroo-js-client": "^2.0.3",
     "@unitn-asa/pddl-client": "^0.0.37",
     "node-fetch": "^3.3.0",
     "socket.io-client": "^4.6.0"

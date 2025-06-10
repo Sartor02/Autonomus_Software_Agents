@@ -1,6 +1,4 @@
 - Pulire il codice (Alcune funzioni si ripetono)
-- Fondere assieme agent.js con multiagent.js (basta un controllo
-sul numero di token in config)
 - Aggiungere la parte di PDDL
 - Dalla seconda challange non mi pare ci sia nulla da modificare
 (forse un controllo sulla tile di delivery nel caso sia occupata

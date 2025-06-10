@@ -290,5 +290,4 @@ class Agent {
     }
 }
 
-// Crea un agente per ogni token nel config
-config.token.forEach(token => new Agent(token));
+export default Agent;
