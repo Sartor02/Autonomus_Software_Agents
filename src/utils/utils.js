@@ -16,22 +16,38 @@ export const INTENT = '[DESCANTA_INTENT]'; // Intent message to announce target 
 export const RUNNER = 'runner';
 export const CARRIER = 'carrier';
 
-export const DIRECTIONS = [
-    { dx: 0, dy: 1, action: 'move_up' },
-    { dx: 0, dy: -1, action: 'move_down' },
-    { dx: 1, dy: 0, action: 'move_right' },
-    { dx: -1, dy: 0, action: 'move_left' },
-]
+// Action enums
+export const ACTIONS = {
+    MOVE_UP: 'MOVE_UP',
+    MOVE_DOWN: 'MOVE_DOWN',
+    MOVE_LEFT: 'MOVE_LEFT',
+    MOVE_RIGHT: 'MOVE_RIGHT',
+    PICKUP: 'PICKUP',
+    PUTDOWN: 'PUTDOWN'
+};
 
+export const DIRECTIONS = [
+    { dx: 0, dy: 1, action: ACTIONS.MOVE_UP },
+    { dx: 0, dy: -1, action: ACTIONS.MOVE_DOWN },
+    { dx: 1, dy: 0, action: ACTIONS.MOVE_RIGHT },
+    { dx: -1, dy: 0, action: ACTIONS.MOVE_LEFT },
+];
+
+// Action executor mapping
+export const createActionMap = (api) => ({
+    [ACTIONS.MOVE_UP]: () => api.emitMove('up'),
+    [ACTIONS.MOVE_DOWN]: () => api.emitMove('down'),
+    [ACTIONS.MOVE_LEFT]: () => api.emitMove('left'),
+    [ACTIONS.MOVE_RIGHT]: () => api.emitMove('right'),
+    [ACTIONS.PICKUP]: () => api.emitPickup(),
+    [ACTIONS.PUTDOWN]: () => api.emitPutdown()
+});
+
+// Helper functions
 export function isAtPosition(x1, y1, x2, y2) {
     return x1 === x2 && y1 === y2;
 }
 
 export function readFile(path) {
-    return new Promise((res, rej) => {
-        fs.readFile(path, 'utf8', (err, data) => {
-            if (err) rej(err)
-            else res(data)
-        })
-    })
+    return fs.readFileSync(path, 'utf8');
 }

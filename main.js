@@ -1,6 +1,6 @@
 import readline from 'readline';
 import config from "./config.js";
-import Agent from './src/multiagent.js';
+import Agent from './src/agent.js';
 
 // ANSI color codes for styling
 const colors = {

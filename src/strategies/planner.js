@@ -1,6 +1,6 @@
 // strategies/greedy.js
 import { Desires } from "../desires/desires.js";
-import { BAN_DURATION, BLOCKED_TIMEOUT, CARRIER, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, RUNNER, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT, TARGET_LOST_THRESHOLD } from "../utils/utils.js";
+import { BAN_DURATION, BLOCKED_TIMEOUT, CARRIER, DIRECTIONS, MIN_GENERAL_REWARD, NEARBY_DISTANCE_THRESHOLD, RUNNER, SPAWN_TILES_HIGH_FACTOR, SPAWN_TILES_THRESHOLD, STUCK_TIMEOUT, TARGET_LOST_THRESHOLD, ACTIONS } from "../utils/utils.js";
 import { isAtPosition } from "../utils/utils.js";
 
 export class Planner {
@@ -186,8 +186,8 @@ export class Planner {
     }
 
     getAction() {
-        // Increment turn counter at the start of each action cycle
-        this.currentTurn++;
+        // Increment turn counter at the start of each action cycle, without overflow
+        this.currentTurn += 1;
 
         if (this.isHandoverMode) {
             const pos = this.beliefs.myPosition;
@@ -239,7 +239,7 @@ export class Planner {
                     // Vai a spawn e prendi pacco
                     if (pos.x === this.spawnTile.x && pos.y === this.spawnTile.y) {
                         const parcel = this.beliefs.availableParcels.find(p => p.x === pos.x && p.y === pos.y);
-                        if (parcel) return { action: 'pickup', target: parcel.id };
+                        if (parcel) return { action: ACTIONS.PICKUP, target: parcel.id };
                     }
                     return this.moveTo(this.spawnTile.x, this.spawnTile.y);
                 } else {
@@ -254,7 +254,7 @@ export class Planner {
                                 // Dopo il putdown, resetta il target per evitare di riprenderla subito
                                 this.currentParcelTarget = null;
                                 this.targetLostTurns = 0;
-                                return { action: 'putdown' };
+                                return { action: ACTIONS.PUTDOWN };
                             }
                         } else {
                             // Allontanati subito dalla handoverTile (verso spawn)
@@ -282,7 +282,7 @@ export class Planner {
                     if (parcel) {
                         // Se sono sopra la handoverTile, prendi la parcella
                         if (pos.x === this.handoverTile.x && pos.y === this.handoverTile.y) {
-                            return { action: 'pickup', target: parcel.id };
+                            return { action: ACTIONS.PICKUP, target: parcel.id };
                         }
                         // Avvicinati solo se la tile è libera
                         if (!this.isBlockedByOtherAgent(this.handoverTile.x, this.handoverTile.y)) {
@@ -302,7 +302,7 @@ export class Planner {
                 } else {
                     // Hai pacco: vai a delivery
                     if (this.beliefs.isDeliveryTile(pos.x, pos.y)) {
-                        return { action: 'putdown' };
+                        return { action: ACTIONS.PUTDOWN };
                     }
                     return this.moveTo(this.deliveryTile.x, this.deliveryTile.y);
                 }
@@ -386,7 +386,7 @@ export class Planner {
                 // Reset exploration blocking state if we reached the target
                 this.blockedTargetTile = null;
                 this.blockedCounter = 0;
-                return { action: 'pickup', target: bestParcel.id };
+                return { action: ACTIONS.PICKUP, target: bestParcel.id };
             }
 
             // If not at the parcel, calculate path to it and move
@@ -660,8 +660,7 @@ export class Planner {
 
     // Simple fallback move finding
     findSimpleValidMove(currentX, currentY) {
-        const directions = DIRECTIONS;
-        for (const dir of directions) {
+        for (const dir of DIRECTIONS) {
             const nextX = currentX + dir.dx;
             const nextY = currentY + dir.dy;
             // Use beliefs.isWalkable which considers both static and dynamic obstacles (other agents)
@@ -701,6 +700,7 @@ export class Planner {
     }
 
     setupHandoverIfNeeded() {
+        if (this.isHandoverMode) return; // Already set up
         const spawnTiles = this.beliefs.getSpawnTiles ? this.beliefs.getSpawnTiles() : [];
         const deliveryTiles = this.beliefs.getDeliveryTiles ? this.beliefs.getDeliveryTiles() : [];
         if (spawnTiles.length === 1 && deliveryTiles.length === 1) {
@@ -747,7 +747,7 @@ export class Planner {
 
     /**
          * Moves towards the specified (x, y) coordinates using the pathfinder.
-         * Returns an action object like { action: 'up' } or null if no move is possible.
+         * Returns an action object like { action: ACTIONS.UP } or null if no move is possible.
          */
     moveTo(targetX, targetY) {
         const currentPos = this.beliefs.myPosition;
@@ -768,12 +768,8 @@ export class Planner {
 
     moveToAdjacent(targetX, targetY) {
         // Trova una tile adiacente libera e cammina lì
-        const dirs = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-        ];
         const pos = this.beliefs.myPosition;
-        for (const dir of dirs) {
+        for (const dir of DIRECTIONS) {
             const nx = targetX + dir.dx;
             const ny = targetY + dir.dy;
             if (this.beliefs.isWalkable(nx, ny) && !(nx === pos.x && ny === pos.y)) {

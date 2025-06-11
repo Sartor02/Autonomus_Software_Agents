@@ -1,4 +1,4 @@
-import { DIRECTIONS } from "../utils/utils.js";
+import { DIRECTIONS, ACTIONS } from "../utils/utils.js";
 
 export class Pathfinder {
     constructor(beliefs) {
@@ -192,10 +192,10 @@ export class Pathfinder {
         const dx = nextX - currentX;
         const dy = nextY - currentY;
 
-        if (dx === 1) return 'move_right';
-        if (dx === -1) return 'move_left';
-        if (dy === 1) return 'move_up';
-        if (dy === -1) return 'move_down';
+        if (dx === 1) return ACTIONS.MOVE_RIGHT;
+        if (dx === -1) return ACTIONS.MOVE_LEFT;
+        if (dy === 1) return ACTIONS.MOVE_UP;
+        if (dy === -1) return ACTIONS.MOVE_DOWN;
 
         return null; // Should not happen if path is valid
     }

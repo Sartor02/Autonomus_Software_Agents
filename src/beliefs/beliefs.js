@@ -223,4 +223,8 @@ export class Beliefs {
     hasParcel() {
         return this.parcels.some(p => p.carriedBy === this.myId);
     }
+
+    setAgentPosition(id, position) {
+        this.initialAgentPositions[id] = position;
+    }
 }
