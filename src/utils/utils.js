@@ -13,8 +13,12 @@ export const TARGET_LOST_THRESHOLD = 10; // How many turns to wait before giving
 export const USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
 export const HANDSHAKE = '[DESCANTA_HANDSHAKE_INIT]'; // Handshake message to identify the agent
 export const INTENT = '[DESCANTA_INTENT]'; // Intent message to announce target and area
-export const RUNNER = 'runner';
-export const CARRIER = 'carrier';
+export const RUNNER = 'runner'; // Role for agents that collect parcels
+export const CARRIER = 'carrier'; // Role for agents that collect parcels
+export const ROLES = {
+    RUNNER: 'RUNNER',
+    CARRIER: 'CARRIER',
+};
 
 // Action enums
 export const ACTIONS = {
@@ -32,6 +36,8 @@ export const DIRECTIONS = [
     { dx: 1, dy: 0, action: ACTIONS.MOVE_RIGHT },
     { dx: -1, dy: 0, action: ACTIONS.MOVE_LEFT },
 ];
+
+
 
 // Action executor mapping
 export const createActionMap = (api) => ({

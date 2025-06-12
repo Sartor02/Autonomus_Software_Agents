@@ -24,6 +24,8 @@ export class CommunicationHandler {
             agentId,
             position
         };
+
+        console.log(`⚠️⚠️⚠️[AGENT - ${agentId}] Announcing presence:`, message);
         this.api.emitShout(JSON.stringify(message));
         this.hasAnnounced = true;
     }

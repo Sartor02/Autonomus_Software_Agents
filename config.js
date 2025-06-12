@@ -1,9 +1,9 @@
 const config = {
     // host: "https://deliveroojs25.azurewebsites.net/",
-    host: "http://localhost:8080/",
+    host: "http://localhost:4001/",
 
-    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImY2M2NlYiIsIm5hbWUiOiJGYWIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0NTgzNjQ1OX0.kogW8-nBoCYplO1Py-BRVqiYAwpSP1bfiHV7tHl_MEM',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjA4NjcyZCIsIm5hbWUiOiJGYWIyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDk2NDkyMjh9.7Ag_mHFvCv1VceIBKuHkW4xhVqS43u7_xl-p92wTR8k']
+    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjBlZDgyMCIsIm5hbWUiOiJGYWIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0OTczMzIwNH0.9vV2vAL2pttQvp8JvjGclNyvvzgWuaFxdzOgaeayqUE',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiMDYzNyIsIm5hbWUiOiJGYWIyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDk3MzMyMDZ9.qe-NSzLnmLOuQO_tKknpapgpTGgLr4UN2vUt2Lb0Vlc']
 }
 
 export default config;

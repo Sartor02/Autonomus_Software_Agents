@@ -3,8 +3,8 @@ import { Beliefs } from "./beliefs/beliefs.js";
 import { Planner } from "./strategies/planner.js";
 import { DeliveryStrategy } from "./strategies/delivery.js";
 import { Pathfinder } from "./plans/pathfinder.js";
-import { CommunicationHandler } from "./communication/communication_handler.js";
-import { AreaManager } from "./communication/area_manager.js";
+import { CommunicationHandler } from "./coordination/communication_handler.js";
+import { AreaManager } from "./coordination/area_manager.js";
 import config from "../config.js";
 import { HANDSHAKE, INTENT, createActionMap } from "./utils/utils.js";
 
@@ -129,10 +129,8 @@ class Agent {
         if (data.agentId === this.beliefs.myId) return;
 
         this.beliefs.updateAgentIntent(data.agentId, data);
-        
         if (data.role) {
-            this.beliefs.updateAgentRole(data.agentId, data.role);
-            console.log(`[AGENT - ${this.beliefs.myId}] Updated role for agent ${data.agentId}: ${data.role}`);
+            this.beliefs.agentRoles[data.agentId] = data.role;
         }
         
         if (data.handoverTile) {
