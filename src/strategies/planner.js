@@ -17,28 +17,21 @@ export class Planner {
         // Variables to manage being blocked by other agents on the next step
         this.blockedTargetTile = null; // The target tile of the step that was blocked
         this.blockedCounter = 0;       // How many consecutive turns we have been blocked trying to reach blockedTargetTile
-        this.BLOCKED_TIMEOUT = BLOCKED_TIMEOUT;      // Threshold: after BLOCKED_TIMEOUT turns blocked on the same target tile, recalculate path
 
         // Stuck detection based on agent position not changing
         this.stuckCounter = 0;
         this.lastPosition = null;
-        this.STUCK_TIMEOUT = STUCK_TIMEOUT; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
 
         // Ban list for parcels blocked by other agents OR where pathfinding failed
         this.bannedParcels = new Map(); // Map<parcelId: string, banUntilTurn: number>
         this.bannedExplorationTiles = new Map(); // Map<"x,y": string, banUntilTurn: number>
 
         this.currentTurn = 0; // Track turns to manage bans (simulated turn counter)
-        this.BAN_DURATION = BAN_DURATION; // How many turns to ban a blocked/unreachable parcel
-
-        this.MIN_GENERAL_REWARD = MIN_GENERAL_REWARD; // Minimum reward for a parcel to be considered generally
-        this.NEARBY_DISTANCE_THRESHOLD = NEARBY_DISTANCE_THRESHOLD; // Distance threshold for picking up low-reward parcels
 
         this.activeExplorationDesire = null; // Track the active exploration desire
 
         this.currentParcelTarget = null;
         this.targetLostTurns = 0;
-        this.targetLostThreshold = TARGET_LOST_THRESHOLD // Numero di turni prima di cambiare target
 
         this.isHandoverMode = false;
         this.isRunner = false;
@@ -46,7 +39,6 @@ export class Planner {
         this.handoverTile = null;
         this.spawnTile = null;
         this.deliveryTile = null;
-
     }
 
     initializeMapKnowledge() {
@@ -152,7 +144,7 @@ export class Planner {
             const distanceToParcel = this.beliefs.calculateDistance(p.x, p.y);
             // Keep the parcel if its reward is >= MIN_GENERAL_REWARD
             // OR if it's within NEARBY_DISTANCE_THRESHOLD from the agent's current position
-            return p.reward >= this.MIN_GENERAL_REWARD || distanceToParcel <= this.NEARBY_DISTANCE_THRESHOLD;
+            return p.reward >= MIN_GENERAL_REWARD || distanceToParcel <= NEARBY_DISTANCE_THRESHOLD;
         });
 
         if (!filteredByReward.length) {
@@ -331,8 +323,8 @@ export class Planner {
         // Detect if stuck (position hasn't changed)
         if (this.lastPosition && isAtPosition(this.lastPosition.x, this.lastPosition.y, currentPos.x, currentPos.y)) {
             this.stuckCounter++;
-            if (this.stuckCounter > this.STUCK_TIMEOUT) {
-                console.warn(`Agent's position hasn't changed for ${this.STUCK_TIMEOUT} turns. Clearing path and trying exploration.`);
+            if (this.stuckCounter > STUCK_TIMEOUT) {
+                console.warn(`Agent's position hasn't changed for ${STUCK_TIMEOUT} turns. Clearing path and trying exploration.`);
                 this.explorationPath = []; // Clear path to force re-decision
                 // Also reset agent blocking state, as this might be the cause
                 this.blockedTargetTile = null;
@@ -366,9 +358,9 @@ export class Planner {
         // Note: If bestParcel is null here, it means either no suitable parcels available (after reward/distance filter),
         // or the most efficient one(s) were filtered out by the ban list.
         if (bestParcel && this.isBlockedByOtherAgent(bestParcel.x, bestParcel.y)) {
-            console.log(`Best parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} is blocked by another agent. Banning this parcel until turn ${this.currentTurn + this.BAN_DURATION}.`);
+            console.log(`Best parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} is blocked by another agent. Banning this parcel until turn ${this.currentTurn + BAN_DURATION}.`);
             // Add the parcel ID to the ban list with an expiry turn
-            this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
+            this.bannedParcels.set(bestParcel.id, this.currentTurn + BAN_DURATION);
             bestParcel = null; // Treat as if no suitable parcel was found, fall through to exploration
             // Reset exploration blocking state if we are ignoring the target
             this.blockedTargetTile = null;
@@ -402,9 +394,9 @@ export class Planner {
 
                 // Handle case where pathfinding returns 0 steps but we are not at the target
                 if (this.explorationPath.length === 0 && !isAtPosition(bestParcel.x, bestParcel.y, currentPos.x, currentPos.y)) {
-                    console.warn(`Pathfinder returned 0 steps to parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning parcel until turn ${this.currentTurn + this.BAN_DURATION}. Clearing path.`);
+                    console.warn(`Pathfinder returned 0 steps to parcel ${bestParcel.id} at ${bestParcel.x},${bestParcel.y} which is not current position. Target likely unreachable (static obstacle or dynamic block). Banning parcel until turn ${this.currentTurn + BAN_DURATION}. Clearing path.`);
                     // Add the parcel ID to the ban list with an expiry turn because pathfinding failed
-                    this.bannedParcels.set(bestParcel.id, this.currentTurn + this.BAN_DURATION);
+                    this.bannedParcels.set(bestParcel.id, this.currentTurn + BAN_DURATION);
                     // Clear the failed path. getAction() won't return a move this turn.
                     // The next act cycle might find a new parcel (if not banned) or go to exploration.
                     // blockedTargetTile and blockedCounter were already reset above.
@@ -439,7 +431,7 @@ export class Planner {
                 // Handle case where pathfinding returns 0 steps to exploration target
                 if (this.explorationPath.length === 0 && !isAtPosition(explorationTarget.x, explorationTarget.y, currentPos.x, currentPos.y)) {
                     const tileKey = `${explorationTarget.x},${explorationTarget.y}`;
-                    this.bannedExplorationTiles.set(tileKey, this.currentTurn + this.BAN_DURATION);
+                    this.bannedExplorationTiles.set(tileKey, this.currentTurn + BAN_DURATION);
                     this.explorationPath = [];
                     // Passa la tile appena bannata come set
                     const bannedThisTurn = new Set([tileKey]);
@@ -604,8 +596,8 @@ export class Planner {
                 this.blockedCounter++;
                 // console.log(`Exploration: Still blocked at ${targetX},${targetY}. Count: ${this.blockedCounter}`);
 
-                if (this.blockedCounter >= this.BLOCKED_TIMEOUT) {
-                    console.warn(`Exploration: Blocked by agent at ${targetX},${targetY} for ${this.BLOCKED_TIMEOUT} turns. Clearing path to recalculate.`);
+                if (this.blockedCounter >= BLOCKED_TIMEOUT) {
+                    console.warn(`Exploration: Blocked by agent at ${targetX},${targetY} for ${BLOCKED_TIMEOUT} turns. Clearing path to recalculate.`);
                     this.explorationPath = []; // Clear the current path
                     this.blockedTargetTile = null; // Reset block state
                     this.blockedCounter = 0;
@@ -684,7 +676,7 @@ export class Planner {
             } else {
                 this.targetLostTurns += 1;
                 // Se il target è "perso" da troppo tempo, resetto
-                if (this.targetLostTurns < this.targetLostThreshold) {
+                if (this.targetLostTurns < TARGET_LOST_THRESHOLD) {
                     return;
                 }
             }
