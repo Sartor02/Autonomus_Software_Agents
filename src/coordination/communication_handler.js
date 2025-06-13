@@ -1,4 +1,4 @@
-import { HANDSHAKE, INTENT } from "../utils/utils.js";
+import { HandshakeMessage, IntentMessage } from "../utils/message.js";
 
 export class CommunicationHandler {
     constructor(api, beliefs) {
@@ -7,58 +7,31 @@ export class CommunicationHandler {
         this.hasAnnounced = false;
     }
 
-    parseMessage(msg) {
-        try {
-            return typeof msg === "string" ? JSON.parse(msg) : msg;
-        } catch (e) {
-            console.error('Failed to parse message:', e);
-            return null;
-        }
-    }
-
     announcePresence(agentId, position) {
         if (this.hasAnnounced) return;
-
-        const message = {
-            type: HANDSHAKE,
-            agentId,
-            position
-        };
-
-        console.log(`⚠️⚠️⚠️[AGENT - ${agentId}] Announcing presence:`, message);
-        this.api.emitShout(JSON.stringify(message));
+        let message = new HandshakeMessage(agentId, position);
+        this.api.emitShout(message);
         this.hasAnnounced = true;
     }
 
     announceIntent(agentId, target, area, role, handoverTile, knownAgents) {
-        const intentMsg = JSON.stringify({
-            type: INTENT,
-            agentId,
-            target,
-            area,
-            role,
-            handoverTile
-        });
+        let message = new IntentMessage(agentId, target, area, role, handoverTile);
 
         // Send to known agents
         for (const otherId of knownAgents) {
-            this.api.emitSay(intentMsg, otherId);
+            this.api.emitSay(message, otherId);
         }
         
         // Fallback broadcast
-        this.api.emitShout(intentMsg);
+        this.api.emitShout(message);
     }
 
     announceAreaIntent(agentId, area, knownAgents) {
-        const intentMsg = JSON.stringify({
-            type: INTENT,
-            agentId,
-            area
-        });
+        let message = new IntentMessage(agentId, null, area);
 
         for (const otherId of knownAgents) {
-            this.api.emitSay(intentMsg, otherId);
+            this.api.emitSay(message, otherId);
         }
-        this.api.emitShout(intentMsg);
+        this.api.emitShout(message);
     }
 }

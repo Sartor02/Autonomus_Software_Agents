@@ -226,4 +226,11 @@ export class Beliefs {
     setAgentPosition(id, position) {
         this.initialAgentPositions[id] = position;
     }
+
+    getParcelAtCurrentPosition() {
+        const currentPos = this.myPosition;
+        return this.availableParcels.find(p =>
+            p.x === currentPos.x && p.y === currentPos.y
+        );
+    }
 }

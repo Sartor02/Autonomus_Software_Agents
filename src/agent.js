@@ -14,6 +14,7 @@ class Agent {
         this.beliefs = new Beliefs();
         this.pathfinder = new Pathfinder(this.beliefs);
         this.deliveryStrategy = new DeliveryStrategy(this.beliefs, this.pathfinder);
+        /** @type{Planner} */
         this.strategy = new Planner(
             this.beliefs,
             this.deliveryStrategy,
@@ -104,15 +105,15 @@ class Agent {
     }
 
     handleMessage(fromId, msg) {
-        const messageData = this.communicationHandler.parseMessage(msg);
-        if (!messageData) return;
+        console.log(`[📧📧📧📧📧📧📧📧📧📧📧📧AGENT - ${this.beliefs.myId}] Received message from ${fromId}:`, msg);
+        if (!msg) return;
 
-        if (!messageData.agentId) messageData.agentId = fromId;
+        if (!msg) msg.agentId = fromId;
 
-        if (messageData.type === HANDSHAKE) {
-            this.handleHandshakeMessage(messageData);
-        } else if (messageData.type === INTENT) {
-            this.handleIntentMessage(messageData);
+        if (msg.type === HANDSHAKE) {
+            this.handleHandshakeMessage(msg);
+        } else if (msg.type === INTENT) {
+            this.handleIntentMessage(msg);
         }
     }
 
@@ -134,7 +135,8 @@ class Agent {
         }
         
         if (data.handoverTile) {
-            this.beliefs.handoverTile = data.handoverTile;
+            console.log(`⚠️⚠️⚠️⚠️[AGENT - ${this.beliefs.myId}] Handover tile for agent ${data.agentId}:`, data.handoverTile);
+            this.strategy.setHandoverTile(data.handoverTile);
         }
         
         console.log(`[AGENT - ${this.beliefs.myId}] Updated intent for agent ${data.agentId}`);
@@ -167,13 +169,8 @@ class Agent {
     }
 
     async act() {
-        if (!this.canAct()) return;
-
-        // If parcel at current position, handle it reactively
-        if (await this.handleReactivePickup()) return;
-
         try {
-            const action = this.strategy.getAction();
+            const action = await this.strategy.getAction();
             if (action?.target) {
                 this.announceIntent(action.target);
             }
@@ -186,46 +183,10 @@ class Agent {
         }
     }
 
-    canAct() {
-        return this.beliefs.myPosition && 
-               this.beliefs.mapWidth > 0;
-    }
-
-    async handleReactivePickup() {
-        const parcelAtCurrentPos = this.getParcelAtCurrentPosition();
-        
-        if (!parcelAtCurrentPos) return false;
-
-        // Don't pickup if this is a handover tile and we're a runner (happen only in map Nx1)
-        if (this.shouldAvoidHandoverPickup(parcelAtCurrentPos)) {
-            await this.api.emitMove('down');
-            return true;
-        }
-
-        try {
-            await this.api.emitPickup();
-        } catch (err) {
-            this.resetPaths(`Reactive pickup failed for parcel ${parcelAtCurrentPos.id}:`, err);
-        }
-        return true;
-    }
-
-    getParcelAtCurrentPosition() {
-        const currentPos = this.beliefs.myPosition;
-        return this.beliefs.availableParcels.find(p =>
-            p.x === currentPos.x && p.y === currentPos.y
-        );
-    }
-
-    shouldAvoidHandoverPickup(parcel) {
-        return this.beliefs.handoverTile &&
-               parcel.x === this.beliefs.handoverTile.x &&
-               parcel.y === this.beliefs.handoverTile.y &&
-               this.strategy.isRunner;
-    }
-
     async executeAction(action) {
+        console.log(`[AGENT - ${this.beliefs.myId}] Strategy action:`, action);
         const actionFunction = this.actionMap[action.action];
+        console.log(`[AGENT - ${this.beliefs.myId}] Executing action:`, action.action);
         if (actionFunction) {
             await actionFunction();
         } else {
@@ -235,7 +196,7 @@ class Agent {
 
     resetPaths(msg, err) {
         console.error(msg, err);
-        this.strategy.explorationPath = [];
+        this.strategy.clearPath();
         this.deliveryStrategy.deliveryPath = [];
     }
 }

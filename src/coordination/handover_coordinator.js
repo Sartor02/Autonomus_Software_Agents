@@ -18,8 +18,10 @@ export class HandoverCoordinator {
     setupHandoverIfNeeded() {
         if (this.isHandoverMode) return;
 
-        const spawnTiles = this.beliefs.getSpawnTiles ? this.beliefs.getSpawnTiles() : [];
-        const deliveryTiles = this.beliefs.getDeliveryTiles ? this.beliefs.getDeliveryTiles() : [];
+        const spawnTiles = this.beliefs.getSpawnTiles() || [];
+        const deliveryTiles = this.beliefs.getDeliveryTiles() || [];
+        console.log(`[HandoverCoordinator] Checking setup: ${spawnTiles.length} spawn tiles, ${deliveryTiles.length} delivery tiles`);
+
         
         if (spawnTiles.length === 1 && deliveryTiles.length === 1) {
             this.initializeHandoverMode(spawnTiles[0], deliveryTiles[0]);
@@ -33,8 +35,7 @@ export class HandoverCoordinator {
         
         // Calculate handover tile (midpoint of path)
         const path = this.pathfinder.findPath(spawnTile.x, spawnTile.y, deliveryTile.x, deliveryTile.y);
-        this.handoverTile = path.length > 2 ? path[Math.floor(path.length / 2)] : (path[1] || spawnTile);
-        
+        this.handoverTile = path.length > 2 ? path[Math.floor(path.length / 2)] : (path[1] || spawnTile);        
         console.log(`[HandoverCoordinator] Handover mode enabled: Spawn(${spawnTile.x},${spawnTile.y}), Delivery(${deliveryTile.x},${deliveryTile.y}), Handover(${this.handoverTile.x},${this.handoverTile.y})`);
 
         this.assignInitialRole();
@@ -125,7 +126,7 @@ export class HandoverCoordinator {
 
     getRunnerAction() {
         const pos = this.beliefs.myPosition;
-
+        console.log(`[HandoverCoordinator] Handovertile: ${this.handoverTile.y}, My Position: ${pos.x}, ${pos.y}`);
         if (!this.beliefs.hasParcel()) {
             // Go to spawn and pick up parcel
             if (pos.x === this.spawnTile.x && pos.y === this.spawnTile.y) {
@@ -174,10 +175,10 @@ export class HandoverCoordinator {
                 }
             } else {
                 // Wait near handover tile
-                if (pos.x === this.handoverTile.x && pos.y === this.handoverTile.y) {
-                    return this.moveToAdjacent(this.handoverTile.x, this.handoverTile.y);
+                if (pos.y === this.handoverTile.y + 1) {
+                    return { action: ACTIONS.NONE};
                 }
-                return this.moveTo(this.handoverTile.x, this.handoverTile.y);
+                return this.moveTo(this.handoverTile.x, this.handoverTile.y + 1);
             }
         } else {
             // Deliver parcel
@@ -230,5 +231,13 @@ export class HandoverCoordinator {
             }
         }
         return null;
+    }
+
+    isRunner() {
+        return this.myRole === ROLES.RUNNER;
+    }
+
+    isCarrier() {
+        return this.myRole === ROLES.CARRIER;
     }
 }
