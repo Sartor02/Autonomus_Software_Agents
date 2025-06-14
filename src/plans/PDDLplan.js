@@ -21,12 +21,12 @@ export class PddlPathfinder {
         }
     }
 
-    // Genera beliefset compatibile con PddlProblem
+    // Generates a beliefset compatible with PddlProblem
     generateBeliefset(startX, startY, targetX, targetY) {
         const objects = [];
         const facts = [];
 
-        // Limita l'area per performance
+        // Limit the area for performance
         const range = 5;
         const minX = Math.max(0, Math.min(startX, targetX) - range);
         const maxX = Math.min(this.beliefs.mapWidth - 1, Math.max(startX, targetX) + range);
@@ -49,22 +49,22 @@ export class PddlPathfinder {
             for (let y = minY; y <= maxY; y++) {
                 if (!this.beliefs.isWalkable(x, y)) continue;
 
-                // Right: se x+1,y è walkable
+                // Right: if x+1,y is walkable
                 if (x + 1 <= maxX && this.beliefs.isWalkable(x + 1, y)) {
                     facts.push(`(right t${x + 1}_${y} t${x}_${y})`);
                 }
 
-                // Left: se x-1,y è walkable
+                // Left: if x-1,y is walkable
                 if (x - 1 >= minX && this.beliefs.isWalkable(x - 1, y)) {
                     facts.push(`(left t${x - 1}_${y} t${x}_${y})`);
                 }
 
-                // Up: se x,y+1 è walkable
+                // Up: if x,y+1 is walkable
                 if (y + 1 <= maxY && this.beliefs.isWalkable(x, y + 1)) {
                     facts.push(`(up t${x}_${y + 1} t${x}_${y})`);
                 }
 
-                // Down: se x,y-1 è walkable
+                // Down: if x,y-1 is walkable
                 if (y - 1 >= minY && this.beliefs.isWalkable(x, y - 1)) {
                     facts.push(`(down t${x}_${y - 1} t${x}_${y})`);
                 }
@@ -77,14 +77,14 @@ export class PddlPathfinder {
         };
     }
 
-    // Main pathfinding method usando il pattern corretto
+    // Main pathfinding method using the correct pattern
     async findPath(startX, startY, targetX, targetY) {
         try {
             if (!this.initialized) {
                 await this.initialize();
             }
 
-            // Verifica che start e target siano walkable
+            // Check that start and target are walkable
             if (!this.beliefs.isWalkable(startX, startY)) {
                 console.error(`Start position (${startX},${startY}) is not walkable`);
                 return [];
@@ -108,7 +108,7 @@ export class PddlPathfinder {
 
             console.log(`Generated: ${beliefset.objects.length} objects, ${allFacts.length} facts`);
 
-            // Create the PDDL problem usando PddlProblem
+            // Create the PDDL problem using PddlProblem
             var pddlProblem = new PddlProblem(
                 'deliveroo',
                 beliefset.objects.join(' '),
@@ -126,7 +126,7 @@ export class PddlPathfinder {
 
             console.log("PDDL Solver result:", plan);
 
-            // Parse the plan to get the path usando il formato corretto
+            // Parse the plan to get the path using the correct format
             let path = [];
 
             if (plan && Array.isArray(plan) && plan.length > 0) {
@@ -136,12 +136,12 @@ export class PddlPathfinder {
                     console.log(`Action ${index}:`, action);
 
                     if (action && action.args && action.args.length >= 2) {
-                        // Il secondo argomento è la destinazione
+                        // The second argument is the destination
                         let destination = action.args[1];
                         if (destination && destination.includes('_')) {
                             let coords = destination.split('_');
                             if (coords.length >= 2) {
-                                let x = parseInt(coords[0].substring(1)); // Rimuovi 't' prefix
+                                let x = parseInt(coords[0].substring(1)); // Remove 't' prefix
                                 let y = parseInt(coords[1]);
 
                                 path.push({ x: x, y: y });
