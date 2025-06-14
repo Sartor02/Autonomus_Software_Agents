@@ -1,4 +1,4 @@
-import { DIRECTIONS, USE_PDDL_PLANNER, PDDL_TIMEOUT } from "../utils/utils.js";
+import { DIRECTIONS, ACTIONS, USE_PDDL_PLANNER, PDDL_TIMEOUT } from "../utils/utils.js";
 import { PddlPathfinder } from "./PDDLplan.js";
 
 export class Pathfinder {
