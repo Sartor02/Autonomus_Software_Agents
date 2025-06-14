@@ -11,7 +11,7 @@ export class PddlPathfinder {
     async initialize() {
         if (!this.initialized) {
             try {
-                this.domain = await readFile('./plans/delivero-domain.pddl');
+                this.domain = await readFile('./src/plans/delivero-domain.pddl');
                 console.log("PDDL domain loaded successfully");
                 this.initialized = true;
             } catch (error) {
