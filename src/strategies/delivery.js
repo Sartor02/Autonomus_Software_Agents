@@ -1,4 +1,4 @@
-import { BLOCKED_TIMEOUT, DELIVERY_THRESHOLD, MAX_DETOUR_DISTANCE } from "../utils/utils.js";
+import { BLOCKED_TIMEOUT, DELIVERY_THRESHOLD, MAX_DETOUR_DISTANCE, ACTIONS } from "../utils/utils.js";
 
 export class DeliveryStrategy {
     constructor(beliefs, pathfinder) {
@@ -44,7 +44,7 @@ export class DeliveryStrategy {
         if (this.beliefs.isDeliveryTile(currentPos.x, currentPos.y)) {
             console.log("At delivery tile, putting down.");
             this.deliveryPath = []; // Clear delivery path after arriving
-            return { action: 'putdown' };
+            return { action: ACTIONS.PUTDOWN };
         }
 
         // Evaluate if picking up a nearby parcel during delivery is worthwhile
@@ -54,7 +54,7 @@ export class DeliveryStrategy {
             // Check if at detour parcel location
             if (this.isAtPosition(detourParcel.x, detourParcel.y, currentPos.x, currentPos.y)) {
                 console.log(`At detour parcel, picking up.`);
-                return { action: 'pickup', target: detourParcel.id };
+                return { action: ACTIONS.PICKUP, target: detourParcel.id };
             }
             // Calculate path to detour parcel (this overrides delivery path temporarily)
             if (this.deliveryPath.length === 0 || !this.isPathLeadingTo(this.deliveryPath, detourParcel.x, detourParcel.y)) {

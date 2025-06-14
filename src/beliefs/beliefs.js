@@ -15,11 +15,10 @@ export class Beliefs {
         this.myId = null;
         this.agentIntents = {}; // { agentId: { target: {x, y} } }
         this.myAssignedArea = null; // Area assigned to this agent
-        this.agentRole = null; // Role of this agent (e.g., "explorer", "collector", etc.)
-        this.handoverTile = null; // Tile where handover happens
         this.agentRoles = {};
+        this.agentRole = null; // Role of this agent (e.g., "explorer", "collector", etc.ntPositions = {}; // Store initial positions of agents
         this.initialAgentPositions = {}; // Store initial positions of agents
-
+        
         this.mapWidth = 0;
         this.mapHeight = 0;
     }
@@ -222,5 +221,16 @@ export class Beliefs {
 
     hasParcel() {
         return this.parcels.some(p => p.carriedBy === this.myId);
+    }
+
+    setAgentPosition(id, position) {
+        this.initialAgentPositions[id] = position;
+    }
+
+    getParcelAtCurrentPosition() {
+        const currentPos = this.myPosition;
+        return this.availableParcels.find(p =>
+            p.x === currentPos.x && p.y === currentPos.y
+        );
     }
 }

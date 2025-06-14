@@ -1,10 +1,9 @@
 const config = {
-    // host: "http://localhost:8080",
-    host: "https://deliveroojs.rtibdi.disi.unitn.it/",
     // host: "https://deliveroojs25.azurewebsites.net/",
+    host: "http://localhost:4001/",
 
-    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjA4ODUzYSIsIm5hbWUiOiJEZXNjYW50YTEiLCJ0ZWFtSWQiOiJlZTFjYjkiLCJ0ZWFtTmFtZSI6IkRlc2NhbnRhQmF1Y2hpIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDg0MTgzODF9.n893HOopARJKXEzePo6JBurQuYrBdf_heNK8gqZI5vI',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUxZDkyYSIsIm5hbWUiOiJEZXNjYW50YTIiLCJ0ZWFtSWQiOiIwYTI1ODMiLCJ0ZWFtTmFtZSI6IkRlc2NhbnRhQmF1Y2hpIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDg0MTgzODR9.h3e65HXFYfTksqvLR8KUVMOjziGbWiZgVEFsuGx52MQ']
+    token: ['eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjBlZDgyMCIsIm5hbWUiOiJGYWIiLCJyb2xlIjoidXNlciIsImlhdCI6MTc0OTczMzIwNH0.9vV2vAL2pttQvp8JvjGclNyvvzgWuaFxdzOgaeayqUE',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhiMDYzNyIsIm5hbWUiOiJGYWIyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NDk3MzMyMDZ9.qe-NSzLnmLOuQO_tKknpapgpTGgLr4UN2vUt2Lb0Vlc']
 }
 
 export default config;
