@@ -129,7 +129,7 @@ export class DeliveryStrategy {
 
             if (addedSteps <= this.maxDetourDistance) {
                 // Score: reward / (added steps + 1)
-                const detourScore = (parcel.reward * 2) / (addedSteps + 1);
+                const detourScore = (parcel.reward) / (addedSteps + 1);
 
                 if (detourScore > bestDetourScore) {
                     bestDetourScore = detourScore;

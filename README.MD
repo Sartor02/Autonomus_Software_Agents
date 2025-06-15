@@ -12,7 +12,6 @@ Empowering Autonomous Agents to Innovate and Lead
     * [Prerequisites](#prerequisites)
     * [Installation](#installation)
 * [Usage](#usage)
-* [Testing](#testing)
 
 ## Overview
 

@@ -135,7 +135,7 @@ class Agent {
         }
         
         if (data.handoverTile) {
-            console.log(`⚠️⚠️⚠️⚠️[AGENT - ${this.beliefs.myId}] Handover tile for agent ${data.agentId}:`, data.handoverTile);
+            console.log(`[AGENT - ${this.beliefs.myId}] Handover tile for agent ${data.agentId}:`, data.handoverTile);
             this.strategy.setHandoverTile(data.handoverTile);
         }
         

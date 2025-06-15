@@ -1,4 +1,3 @@
-// File used for all constants
 import fs from 'fs'
 export const BLOCKED_TIMEOUT = 2; // Threshold: after BLOCKED_TIMEOUT turns blocked on the same target tile, recalculate path
 export const STUCK_TIMEOUT = 5; // Threshold: if agent position doesn't change for STUCK_TIMEOUT turns, clear path
