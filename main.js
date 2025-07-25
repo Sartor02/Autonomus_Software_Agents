@@ -1,6 +1,7 @@
 import readline from 'readline';
 import config from "./config.js";
 import Agent from './src/agent.js';
+import * as utils from './src/utils/utils.js';
 
 // ANSI color codes for styling
 const colors = {
@@ -130,21 +131,11 @@ function interactiveSelect(title, options) {
     });
 }
 
-async function selectConfigMode() {
-    const options = [
-        'Use existing config file (auto-spawn agents)',
-        'Manual configuration (custom tokens)'
-    ];
-    
-    const selectedIndex = await interactiveSelect('⚙️  Configuration mode:', options);
-    return selectedIndex === 1; // Return true for manual mode
-}
-
 async function selectServer() {
     const options = [
         'https://deliveroojs25.azurewebsites.net',
         'https://deliveroojs.rtibdi.disi.unitn.it',
-        'http://localhost:8080'
+        'http://localhost:4001'
     ];
     
     const selectedIndex = await interactiveSelect('🌐 Select the server to connect to:', options);
@@ -183,7 +174,6 @@ async function getTokensInput(count) {
 async function spawnAgents(tokens, serverUrl) {
     console.log(colors.green + `\n🚀 Spawning ${tokens.length} agent(s) on ${serverUrl}...` + colors.reset);
     
-    // Update config with selected server
     config.host = serverUrl;
     
     tokens.forEach((token, index) => {
@@ -195,30 +185,33 @@ async function spawnAgents(tokens, serverUrl) {
     console.log(colors.cyan + '📊 Agents are now operating autonomously...\n' + colors.reset);
 }
 
+async function selectPDDLMode() {
+    const options = [
+        'Use A* pathfinding (default)',
+        'Use PDDL planner for pathfinding'
+    ];
+    
+    const selectedIndex = await interactiveSelect('🧠 Select pathfinding mode:', options);
+    return selectedIndex === 1; // Return true for PDDL mode
+}
+
+async function updatePDDLConfig(usePDDL) {
+    try {
+        utils.setUsePDDLPlanner(usePDDL);
+        console.log(colors.green + `✅ PDDL planner ${usePDDL ? 'enabled' : 'disabled'}` + colors.reset);
+    } catch (error) {
+        console.error(colors.red + '❌ Error updating PDDL config:', error.message + colors.reset);
+    }
+}
+
 async function main() {
     printHeader();
     
     try {
-        // Step 1: Select configuration mode with interactive menu
-        const useManualConfig = await selectConfigMode();
-        
-        let tokens;
-        let serverUrl;
-        
-        if (useManualConfig) {
-            // Manual configuration - interactive server selection
-            serverUrl = await selectServer();
-            tokens = await getManualTokens();
-        } else {
-            // Use existing config - both host and tokens from config file
-            tokens = config.token;
-            serverUrl = config.host;
-            console.log(colors.green + `✅ Using config file:` + colors.reset);
-            console.log(colors.cyan + `   Server: ${serverUrl}` + colors.reset);
-            console.log(colors.cyan + `   Agents: ${tokens.length} token(s)` + colors.reset);
-        }
-        
-        // Step 3: Spawn agents
+        const serverUrl = await selectServer();
+        const usePDDL = await selectPDDLMode();
+        await updatePDDLConfig(usePDDL);
+        const tokens = await getManualTokens();
         await spawnAgents(tokens, serverUrl);
         
     } catch (error) {
@@ -226,5 +219,4 @@ async function main() {
     }
 }
 
-// Start the application
 main();

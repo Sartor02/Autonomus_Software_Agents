@@ -10,7 +10,7 @@ export const SPAWN_TILES_THRESHOLD = 25 // If the number of spawn tiles is less 
 export const SPAWN_TILES_HIGH_FACTOR = 1; // If the number of spawn tiles is more than normal tiles + this, consider them for detour
 export const TARGET_LOST_THRESHOLD = 10; // How many turns to wait before giving up on a target parcel
 export const PDDL_TIMEOUT = 250; // Timeout for PDDL planning in milliseconds
-export const USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
+export let USE_PDDL_PLANNER = false; // Use PDDL planner for pathfinding
 export const HANDSHAKE = '[DESCANTA_HANDSHAKE_INIT]'; // Handshake message to identify the agent
 export const INTENT = '[DESCANTA_INTENT]'; // Intent message to announce target and area
 export const ROLES = {
@@ -55,4 +55,14 @@ export function isAtPosition(x1, y1, x2, y2) {
 
 export function readFile(path) {
     return fs.readFileSync(path, 'utf8');
+}
+
+// Function to update the PDDL planner setting
+export function setUsePDDLPlanner(value) {
+    USE_PDDL_PLANNER = value;
+}
+
+// Function to get the current PDDL planner setting
+export function getUsePDDLPlanner() {
+    return USE_PDDL_PLANNER;
 }
